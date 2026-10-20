@@ -1,0 +1,13 @@
+{
+  "name": "k-tft",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Thống kê tỉ lệ thắng và leo rank theo đội hình TFT (dữ liệu MetaTFT)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
