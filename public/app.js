@@ -1,5 +1,5 @@
-import * as core from './core.js?v=1.1.2';
-import * as i18n from './i18n.js?v=1.1.2';
+import * as core from './core.js?v=1.1.3';
+import * as i18n from './i18n.js?v=1.1.3';
 
 const t = i18n.t;
 
@@ -580,9 +580,23 @@ function renderPlayerCard(matches, groups) {
   const p = state.profile;
   const s = core.summarize(matches);
   const ranked = p.ranked ?? {};
+  const currentTier = core.getRankTier(ranked.rating_text, ranked.rating_numeric);
   const sr = p.server_rank;
   const topVal = sr?.rank && sr?.total ? (sr.rank / sr.total) * 100 : null;
-  const topPct = topVal == null ? '' : ` · Top ${topVal < 0.1 ? '<0.1' : topVal.toFixed(1)}%`;
+  const serverTier = core.getServerTopTier(topVal, sr?.rank);
+  const locale = i18n.getLang() === 'vi' ? 'vi-VN' : 'en-US';
+  const topPctText = topVal == null ? '' : `Top ${topVal < 0.01 ? '<0.01' : topVal < 0.1 ? '<0.1' : topVal.toFixed(1)}%`;
+
+  let serverRankHtml = '';
+  if (sr?.rank) {
+    const formattedRank = sr.rank.toLocaleString(locale);
+    const tooltip = sr.total
+      ? t('serverRankTooltip', { rank: formattedRank, total: sr.total.toLocaleString(locale), top: topPctText })
+      : `${t('serverRank', { rank: formattedRank })} (${topPctText})`;
+
+    serverRankHtml = ` · <span class="server-standing-badge tier-${serverTier}" title="${esc(tooltip)}"><span class="server-standing-dot"></span><span class="server-rank-num">${t('serverRank', { rank: formattedRank })}</span>${topPctText ? `<span class="server-standing-sep">·</span><strong class="server-top-pct">${topPctText}</strong>` : ''}</span>`;
+  }
+
   const [name, tag] = (p.summoner?.riot_id ?? `${state.player.name}#${state.player.tag}`).split('#');
   const seasonLabel = core.setLabel(state.set);
   const rankedShown = matches.filter((m) => m.queue === core.RANKED_QUEUE);
@@ -591,12 +605,21 @@ function renderPlayerCard(matches, groups) {
   const partial = ranked.num_games > rankedStored
     ? `<div class="sub">${t('partialNotice', { stored: rankedStored, total: ranked.num_games })}</div>`
     : '';
+
+  const peakTier = ranked.peak_rating ? core.getRankTier(ranked.peak_rating, ranked.peak_rating_numeric) : null;
+  const peakRankHtml = ranked.peak_rating
+    ? `<div class="sub">${t('peakRank', { rank: `<span class="tier-val tier-${peakTier}">${esc(ranked.peak_rating)}</span>` })}</div>`
+    : '';
+
   $('player-card').innerHTML = `
     <div class="player-id">
       <h1>${esc(name)} <small>#${esc(tag)}</small></h1>
-      <div class="rank">${esc(ranked.rating_text ?? t('unranked'))}</div>
-      <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${sr?.rank ? ` · ${t('serverRank', { rank: sr.rank.toLocaleString(i18n.getLang() === 'vi' ? 'vi-VN' : 'en-US') })}${topPct}` : ''}</div>
-      ${ranked.peak_rating ? `<div class="sub">${t('peakRank', { rank: esc(ranked.peak_rating) })}</div>` : ''}
+      <div class="rank tier-${currentTier}">
+        <span class="rank-dot"></span>
+        <span class="rank-name">${esc(ranked.rating_text ?? t('unranked'))}</span>
+      </div>
+      <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${serverRankHtml}</div>
+      ${peakRankHtml}
       ${partial}
       ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
     </div>
@@ -1217,7 +1240,9 @@ function renderMatches(matches) {
         : m.lpPending
           ? `<div class="delta muted">${t('lpPending')}</div>`
           : '';
-      lp = `${delta}<div class="after">${esc(core.ratingToText(m.lpAfter))}</div>`;
+      const afterText = core.ratingToText(m.lpAfter);
+      const afterTier = core.getRankTier(afterText, m.lpAfter);
+      lp = `${delta}<div class="after tier-${afterTier}">${esc(afterText)}</div>`;
     }
 
     const mId = m.id || '';

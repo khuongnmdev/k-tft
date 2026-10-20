@@ -1,6 +1,6 @@
 {
   "name": "k-tft",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "private": true,
   "description": "Thống kê tỉ lệ thắng và leo rank theo đội hình TFT (dữ liệu MetaTFT)",
   "type": "module",

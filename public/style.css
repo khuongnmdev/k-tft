@@ -19,6 +19,49 @@
   --cost-4: #b85fd6;
   --cost-5: #e9b949;
   --radius: 10px;
+
+  /* TFT Rank Tier Colors */
+  --tier-challenger: #f5b041;
+  --tier-challenger-glow: rgba(245, 176, 65, 0.4);
+  --tier-challenger-bg: rgba(245, 176, 65, 0.12);
+
+  --tier-grandmaster: #e74c3c;
+  --tier-grandmaster-glow: rgba(231, 76, 60, 0.4);
+  --tier-grandmaster-bg: rgba(231, 76, 60, 0.12);
+
+  --tier-master: #c084fc;
+  --tier-master-glow: rgba(192, 132, 252, 0.4);
+  --tier-master-bg: rgba(192, 132, 252, 0.12);
+
+  --tier-diamond: #38bdf8;
+  --tier-diamond-glow: rgba(56, 189, 248, 0.35);
+  --tier-diamond-bg: rgba(56, 189, 248, 0.12);
+
+  --tier-emerald: #10b981;
+  --tier-emerald-glow: rgba(16, 185, 129, 0.35);
+  --tier-emerald-bg: rgba(16, 185, 129, 0.12);
+
+  --tier-platinum: #2dd4bf;
+  --tier-platinum-glow: rgba(45, 212, 191, 0.35);
+  --tier-platinum-bg: rgba(45, 212, 191, 0.12);
+
+  --tier-gold: #facc15;
+  --tier-gold-glow: rgba(250, 204, 21, 0.3);
+  --tier-gold-bg: rgba(250, 204, 21, 0.12);
+
+  --tier-silver: #94a3b8;
+  --tier-silver-glow: rgba(148, 163, 184, 0.25);
+  --tier-silver-bg: rgba(148, 163, 184, 0.1);
+
+  --tier-bronze: #d97706;
+  --tier-bronze-glow: rgba(217, 119, 6, 0.25);
+  --tier-bronze-bg: rgba(217, 119, 6, 0.1);
+
+  --tier-iron: #78716c;
+  --tier-iron-glow: rgba(120, 113, 108, 0.2);
+  --tier-iron-bg: rgba(120, 113, 108, 0.1);
+
+  --tier-unranked: #8e8d86;
 }
 
 * { box-sizing: border-box; }
@@ -409,8 +452,142 @@ main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; display: grid
 .player-card { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; }
 .player-id h1 { margin: 0; font-size: 22px; }
 .player-id h1 small { color: var(--text-muted); font-weight: 400; }
-.player-id .rank { color: var(--gold); font-weight: 600; margin-top: 2px; }
-.player-id .sub { color: var(--text-muted); font-size: 13px; }
+.player-id .rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+}
+.player-id .rank .rank-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  flex-shrink: 0;
+}
+.player-id .sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  line-height: 1.6;
+}
+
+/* Tier text coloring */
+.tier-challenger { color: var(--tier-challenger); }
+.tier-grandmaster { color: var(--tier-grandmaster); }
+.tier-master { color: var(--tier-master); }
+.tier-diamond { color: var(--tier-diamond); }
+.tier-emerald { color: var(--tier-emerald); }
+.tier-platinum { color: var(--tier-platinum); }
+.tier-gold { color: var(--tier-gold); }
+.tier-silver { color: var(--tier-silver); }
+.tier-bronze { color: var(--tier-bronze); }
+.tier-iron { color: var(--tier-iron); }
+.tier-unranked { color: var(--tier-unranked); }
+.tier-val { font-weight: 600; }
+
+/* Server standing badge */
+.server-standing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: middle;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.server-standing-badge:hover {
+  transform: translateY(-1px);
+}
+.server-standing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+.server-standing-sep {
+  opacity: 0.45;
+  font-weight: 400;
+}
+.server-top-pct {
+  font-weight: 700;
+}
+
+.server-standing-badge.tier-challenger {
+  background: var(--tier-challenger-bg);
+  border-color: rgba(245, 176, 65, 0.45);
+  color: var(--tier-challenger);
+  box-shadow: 0 0 12px rgba(245, 176, 65, 0.18);
+}
+.server-standing-badge.tier-grandmaster {
+  background: var(--tier-grandmaster-bg);
+  border-color: rgba(231, 76, 60, 0.45);
+  color: var(--tier-grandmaster);
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.18);
+}
+.server-standing-badge.tier-master {
+  background: var(--tier-master-bg);
+  border-color: rgba(192, 132, 252, 0.45);
+  color: var(--tier-master);
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.18);
+}
+.server-standing-badge.tier-diamond {
+  background: var(--tier-diamond-bg);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: var(--tier-diamond);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+}
+.server-standing-badge.tier-emerald {
+  background: var(--tier-emerald-bg);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: var(--tier-emerald);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.18);
+}
+.server-standing-badge.tier-platinum {
+  background: var(--tier-platinum-bg);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: var(--tier-platinum);
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.18);
+}
+.server-standing-badge.tier-gold {
+  background: var(--tier-gold-bg);
+  border-color: rgba(250, 204, 21, 0.4);
+  color: var(--tier-gold);
+}
+.server-standing-badge.tier-silver {
+  background: var(--tier-silver-bg);
+  border-color: rgba(148, 163, 184, 0.4);
+  color: var(--tier-silver);
+}
+.server-standing-badge.tier-bronze {
+  background: var(--tier-bronze-bg);
+  border-color: rgba(217, 119, 6, 0.4);
+  color: var(--tier-bronze);
+}
+.server-standing-badge.tier-iron {
+  background: var(--tier-iron-bg);
+  border-color: rgba(120, 113, 108, 0.4);
+  color: var(--tier-iron);
+}
 
 .tiles { display: flex; flex-wrap: wrap; gap: 10px; }
 .tile {

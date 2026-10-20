@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.1.2';
+export const APP_VERSION = '1.1.3';
 
 export const RANKED_QUEUE = 1100;
 
@@ -576,20 +576,69 @@ export function regionToLabel(apiOrSlug) {
   return found ? found.label : s.toUpperCase();
 }
 
-export function getTierColor(ratingText) {
-  if (!ratingText) return 'var(--text-muted)';
-  const t = ratingText.toUpperCase();
-  if (t.includes('CHALLENGER')) return '#f5b041';
-  if (t.includes('GRANDMASTER')) return '#e74c3c';
-  if (t.includes('MASTER')) return '#d55181';
-  if (t.includes('DIAMOND')) return '#3987e5';
-  if (t.includes('EMERALD')) return '#199e70';
-  if (t.includes('PLATINUM')) return '#24a896';
-  if (t.includes('GOLD')) return '#e9b949';
-  if (t.includes('SILVER')) return '#8ba2a7';
-  if (t.includes('BRONZE')) return '#a77044';
-  if (t.includes('IRON')) return '#8c857b';
-  return 'var(--text-secondary)';
+export function getRankTier(ratingText, ratingNumeric = null) {
+  if (ratingText) {
+    const s = String(ratingText).toUpperCase();
+    if (s.includes('CHALLENGER') || s.includes('THÁCH ĐẤU')) return 'challenger';
+    if (s.includes('GRANDMASTER') || s.includes('ĐẠI CAO THỦ')) return 'grandmaster';
+    if (s.includes('MASTER') || s.includes('CAO THỦ')) return 'master';
+    if (s.includes('DIAMOND') || s.includes('KIM CƯƠNG')) return 'diamond';
+    if (s.includes('EMERALD') || s.includes('LỤC BẢO')) return 'emerald';
+    if (s.includes('PLATINUM') || s.includes('BẠCH KIM')) return 'platinum';
+    if (s.includes('GOLD') || s.includes('VÀNG')) return 'gold';
+    if (s.includes('SILVER') || s.includes('BẠC')) return 'silver';
+    if (s.includes('BRONZE') || s.includes('ĐỒNG')) return 'bronze';
+    if (s.includes('IRON') || s.includes('SẮT')) return 'iron';
+  }
+  if (typeof ratingNumeric === 'number' && ratingNumeric > 0) {
+    if (ratingNumeric >= 3300) return 'challenger';
+    if (ratingNumeric >= 3000) return 'grandmaster';
+    if (ratingNumeric >= 2800) return 'master';
+    const idx = Math.floor(ratingNumeric / 400);
+    return TIERS[idx]?.toLowerCase() ?? 'iron';
+  }
+  return 'unranked';
+}
+
+export const TIER_COLORS = {
+  challenger: '#f5b041',
+  grandmaster: '#e74c3c',
+  master: '#c084fc',
+  diamond: '#38bdf8',
+  emerald: '#10b981',
+  platinum: '#2dd4bf',
+  gold: '#facc15',
+  silver: '#94a3b8',
+  bronze: '#d97706',
+  iron: '#78716c',
+  unranked: '#8e8d86',
+};
+
+export function getTierColor(ratingText, ratingNumeric = null) {
+  const tier = getRankTier(ratingText, ratingNumeric);
+  return TIER_COLORS[tier] ?? 'var(--text-secondary)';
+}
+
+export function getServerTopTier(topVal, rank = null) {
+  if (rank != null && rank > 0) {
+    if (rank <= 100) return 'challenger';
+    if (rank <= 500) return 'grandmaster';
+  }
+  if (topVal == null || isNaN(topVal)) return null;
+  if (topVal <= 0.05) return 'challenger';
+  if (topVal <= 0.2) return 'grandmaster';
+  if (topVal <= 1.5) return 'master';
+  if (topVal <= 6.0) return 'diamond';
+  if (topVal <= 15.0) return 'emerald';
+  if (topVal <= 32.0) return 'platinum';
+  if (topVal <= 60.0) return 'gold';
+  if (topVal <= 85.0) return 'silver';
+  return 'bronze';
+}
+
+export function getServerTopColor(topVal, rank = null) {
+  const tier = getServerTopTier(topVal, rank);
+  return tier ? (TIER_COLORS[tier] ?? 'var(--text-secondary)') : 'var(--text-secondary)';
 }
 
 // Accepts "Name#Tag" or a MetaTFT player URL (…/player/vn/Name-Tag).
