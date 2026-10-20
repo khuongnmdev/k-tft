@@ -63,7 +63,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">k-tft <span data-i18n="brandSub">thống kê đội hình</span></div>
+    <div class="brand">k-tft <span class="app-version-badge app-version">v1.0.0</span> <span data-i18n="brandSub">thống kê đội hình</span></div>
     <form id="search" class="search" autocomplete="off">
       <select id="region" aria-label="Server"></select>
       <div class="search-input-wrap">
@@ -74,10 +74,34 @@
       <button type="button" id="refresh" class="ghost" title="Yêu cầu MetaTFT cập nhật trận mới" data-i18n="refreshBtn" data-i18n-title="refreshBtnTitle">Cập nhật</button>
     </form>
     <div class="topbar-right">
-      <select id="lang-select" class="lang-select" aria-label="Ngôn ngữ / Language">
-        <option value="vi">🇻🇳 Tiếng Việt</option>
-        <option value="en">🇬🇧 English</option>
-      </select>
+      <div class="lang-dropdown" id="lang-dropdown">
+        <button type="button" class="lang-btn" id="lang-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Ngôn ngữ / Language">
+          <span class="lang-flag" id="current-lang-flag">
+            <svg class="flag-icon" viewBox="0 0 640 480" width="18" height="13.5"><rect width="640" height="480" fill="#da251d"/><polygon points="320,80 367,225 519,225 396,314 443,459 320,370 197,459 244,314 121,225 273,225" fill="#ff0"/></svg>
+          </span>
+          <span class="lang-emoji">🇻🇳</span>
+          <span class="lang-label" id="current-lang-label">Tiếng Việt</span>
+          <span class="lang-arrow">▾</span>
+        </button>
+        <div class="lang-menu" id="lang-menu" role="listbox" hidden>
+          <button type="button" class="lang-opt selected" data-lang="vi" role="option">
+            <svg class="flag-icon" viewBox="0 0 640 480" width="18" height="13.5"><rect width="640" height="480" fill="#da251d"/><polygon points="320,80 367,225 519,225 396,314 443,459 320,370 197,459 244,314 121,225 273,225" fill="#ff0"/></svg>
+            <span class="lang-emoji">🇻🇳</span>
+            <span>Tiếng Việt</span>
+            <span class="lang-check" data-lang-check="vi">✓</span>
+          </button>
+          <button type="button" class="lang-opt" data-lang="en" role="option">
+            <svg class="flag-icon" viewBox="0 0 640 480" width="18" height="13.5"><path fill="#012169" d="M0 0h640v480H0z"/><path fill="#FFF" d="m75 0 245 184L565 0h75v48l-245 184 245 184v64h-75L320 296 75 480H0v-48l245-184L0 64V0h75z"/><path fill="#C8102E" d="m424 288 216 162v30h-40L384 318zm176-288L384 162l40 30 216-162zM0 480l216-162-40-30L0 450zm0-440 216 162 40-30L40 10H0z"/><path fill="#FFF" d="M256 0h128v480H256zM0 176h640v128H0z"/><path fill="#C8102E" d="M280 0h80v480h-80zM0 200h640v80H0z"/></svg>
+            <span class="lang-emoji">🇬🇧</span>
+            <span>English</span>
+            <span class="lang-check" data-lang-check="en">✓</span>
+          </button>
+        </div>
+        <select id="lang-select" class="sr-only" aria-hidden="true" tabindex="-1">
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </select>
+      </div>
     </div>
   </header>
 
@@ -189,7 +213,12 @@
     </section>
   </main>
 
-  <footer class="foot" data-i18n="footerText">Dữ liệu lấy từ MetaTFT (API không chính thức). Đội hình được ghép với các comp meta MetaTFT lưu cho từng mùa.</footer>
+  <footer class="foot">
+    <div data-i18n="footerText">Dữ liệu lấy từ MetaTFT (API không chính thức). Đội hình được ghép với các comp meta MetaTFT lưu cho từng mùa.</div>
+    <div class="foot-meta">k-tft · <span class="app-version">v1.0.0</span></div>
+  </footer>
+
+  <div class="version-watermark app-version" id="version-watermark" title="Phiên bản k-tft">v1.0.0</div>
 
   <script type="module" src="app.js"></script>
 </body>

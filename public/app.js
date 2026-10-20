@@ -1336,16 +1336,102 @@ function setupAutocomplete() {
   });
 }
 
+const LANG_CONFIG = {
+  vi: {
+    label: 'Tiếng Việt',
+    emoji: '🇻🇳',
+    svg: `<svg class="flag-icon" viewBox="0 0 640 480" width="18" height="13.5"><rect width="640" height="480" fill="#da251d"/><polygon points="320,80 367,225 519,225 396,314 443,459 320,370 197,459 244,314 121,225 273,225" fill="#ff0"/></svg>`,
+  },
+  en: {
+    label: 'English',
+    emoji: '🇬🇧',
+    svg: `<svg class="flag-icon" viewBox="0 0 640 480" width="18" height="13.5"><path fill="#012169" d="M0 0h640v480H0z"/><path fill="#FFF" d="m75 0 245 184L565 0h75v48l-245 184 245 184v64h-75L320 296 75 480H0v-48l245-184L0 64V0h75z"/><path fill="#C8102E" d="m424 288 216 162v30h-40L384 318zm176-288L384 162l40 30 216-162zM0 480l216-162-40-30L0 450zm0-440 216 162 40-30L40 10H0z"/><path fill="#FFF" d="M256 0h128v480H256zM0 176h640v128H0z"/><path fill="#C8102E" d="M280 0h80v480h-80zM0 200h640v80H0z"/></svg>`,
+  },
+};
+
+function setupLanguageDropdown() {
+  const dropdown = $('lang-dropdown');
+  const btn = $('lang-btn');
+  const menu = $('lang-menu');
+  const flagEl = $('current-lang-flag');
+  const labelEl = $('current-lang-label');
+  const emojiEl = document.querySelector('.lang-btn .lang-emoji');
+  const selectEl = $('lang-select');
+  if (!dropdown || !btn || !menu) return;
+
+  function updateUi(lang) {
+    const cfg = LANG_CONFIG[lang] || LANG_CONFIG.vi;
+    if (flagEl) flagEl.innerHTML = cfg.svg;
+    if (emojiEl) emojiEl.textContent = cfg.emoji;
+    if (labelEl) labelEl.textContent = cfg.label;
+    menu.querySelectorAll('.lang-opt').forEach((opt) => {
+      const isSelected = opt.dataset.lang === lang;
+      opt.classList.toggle('selected', isSelected);
+    });
+  }
+
+  function toggleMenu(show) {
+    const isHidden = typeof show === 'boolean' ? !show : !menu.hidden;
+    menu.hidden = isHidden;
+    dropdown.classList.toggle('open', !isHidden);
+    btn.setAttribute('aria-expanded', String(!isHidden));
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  menu.addEventListener('click', (e) => {
+    const opt = e.target.closest('.lang-opt');
+    if (!opt) return;
+    const chosen = opt.dataset.lang;
+    if (chosen && chosen !== i18n.getLang()) {
+      if (selectEl) {
+        selectEl.value = chosen;
+        selectEl.dispatchEvent(new Event('change'));
+      } else {
+        i18n.setLang(chosen);
+        applyTranslations();
+      }
+      updateUi(chosen);
+    }
+    toggleMenu(false);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.lang-dropdown')) {
+      toggleMenu(false);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.hidden) {
+      toggleMenu(false);
+    }
+  });
+
+  updateUi(i18n.getLang());
+  return { updateUi };
+}
+
 function init() {
   Chart.defaults.color = TEXT2;
   Chart.defaults.borderColor = GRID;
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
-  // Language selector
+  // Initialize version watermark & badges
+  document.querySelectorAll('.app-version').forEach((el) => {
+    el.textContent = `v${core.APP_VERSION}`;
+  });
+
+  // Language dropdown
+  const langUi = setupLanguageDropdown();
   $('lang-select').value = i18n.getLang();
   $('lang-select').addEventListener('change', async (e) => {
     const newLang = e.target.value;
     i18n.setLang(newLang);
+    langUi?.updateUi(newLang);
     applyTranslations();
 
     if (state.set && state.player) {
