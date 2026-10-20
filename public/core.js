@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.1.4';
+export const APP_VERSION = '1.1.5';
 
 export const RANKED_QUEUE = 1100;
 
@@ -827,6 +827,106 @@ export function getServerTopTier(topVal, rank = null) {
 export function getServerTopColor(topVal, rank = null) {
   const tier = getServerTopTier(topVal, rank);
   return tier ? (TIER_COLORS[tier] ?? 'var(--text-secondary)') : 'var(--text-secondary)';
+}
+
+export const TIER_NAMES = {
+  vi: {
+    challenger: 'Thách Đấu',
+    grandmaster: 'Đại Cao Thủ',
+    master: 'Cao Thủ',
+    diamond: 'Kim Cương',
+    emerald: 'Lục Bảo',
+    platinum: 'Bạch Kim',
+    gold: 'Vàng',
+    silver: 'Bạc',
+    bronze: 'Đồng',
+    iron: 'Sắt',
+    unranked: 'Chưa có rank',
+  },
+  en: {
+    challenger: 'Challenger',
+    grandmaster: 'Grandmaster',
+    master: 'Master',
+    diamond: 'Diamond',
+    emerald: 'Emerald',
+    platinum: 'Platinum',
+    gold: 'Gold',
+    silver: 'Silver',
+    bronze: 'Bronze',
+    iron: 'Iron',
+    unranked: 'Unranked',
+  },
+};
+
+export function getTierName(tier, lang = 'vi') {
+  const dict = TIER_NAMES[lang] || TIER_NAMES.vi;
+  return dict[tier] || tier;
+}
+
+export function getStatServerRank(statKey, val) {
+  if (val == null || (typeof val === 'number' && isNaN(val))) return null;
+
+  switch (statKey) {
+    case 'avgPlace': {
+      const p = Number(val);
+      if (p <= 3.80) return { tier: 'challenger', top: '<0.5%', pct: 0.5 };
+      if (p <= 4.00) return { tier: 'grandmaster', top: 'Top 2%', pct: 2 };
+      if (p <= 4.15) return { tier: 'diamond', top: 'Top 6%', pct: 6 };
+      if (p <= 4.28) return { tier: 'platinum', top: 'Top 16%', pct: 16 };
+      if (p <= 4.40) return { tier: 'platinum', top: 'Top 30%', pct: 30 };
+      if (p <= 4.52) return { tier: 'gold', top: 'Top 50%', pct: 50 };
+      if (p <= 4.65) return { tier: 'silver', top: 'Top 70%', pct: 70 };
+      return { tier: 'bronze', top: 'Top 85%', pct: 85 };
+    }
+    case 'top4Rate': {
+      const r = Number(val);
+      if (r >= 0.65) return { tier: 'challenger', top: '<0.5%', pct: 0.5 };
+      if (r >= 0.60) return { tier: 'grandmaster', top: 'Top 3%', pct: 3 };
+      if (r >= 0.56) return { tier: 'diamond', top: 'Top 8%', pct: 8 };
+      if (r >= 0.53) return { tier: 'platinum', top: 'Top 18%', pct: 18 };
+      if (r >= 0.50) return { tier: 'gold', top: 'Top 35%', pct: 35 };
+      if (r >= 0.46) return { tier: 'silver', top: 'Top 60%', pct: 60 };
+      return { tier: 'bronze', top: 'Top 80%', pct: 80 };
+    }
+    case 'winRate': {
+      const r = Number(val);
+      if (r >= 0.20) return { tier: 'challenger', top: 'Top 1%', pct: 1 };
+      if (r >= 0.16) return { tier: 'grandmaster', top: 'Top 5%', pct: 5 };
+      if (r >= 0.13) return { tier: 'diamond', top: 'Top 15%', pct: 15 };
+      if (r >= 0.11) return { tier: 'platinum', top: 'Top 30%', pct: 30 };
+      if (r >= 0.09) return { tier: 'gold', top: 'Top 48%', pct: 48 };
+      if (r >= 0.065) return { tier: 'silver', top: 'Top 70%', pct: 70 };
+      return { tier: 'bronze', top: 'Top 85%', pct: 85 };
+    }
+    case 'games': {
+      const g = Number(val);
+      if (g >= 250) return { tier: 'challenger', top: 'Top 0.5%', pct: 0.5 };
+      if (g >= 160) return { tier: 'grandmaster', top: 'Top 3%', pct: 3 };
+      if (g >= 90) return { tier: 'diamond', top: 'Top 12%', pct: 12 };
+      if (g >= 50) return { tier: 'platinum', top: 'Top 28%', pct: 28 };
+      if (g >= 25) return { tier: 'gold', top: 'Top 50%', pct: 50 };
+      if (g >= 10) return { tier: 'silver', top: 'Top 75%', pct: 75 };
+      return { tier: 'bronze', top: 'Top 90%', pct: 90 };
+    }
+    case 'lpNet': {
+      const lp = Number(val);
+      if (lp >= 1000) return { tier: 'challenger', top: 'Top 1%', pct: 1 };
+      if (lp >= 500) return { tier: 'emerald', top: 'Top 8%', pct: 8 };
+      if (lp >= 200) return { tier: 'platinum', top: 'Top 20%', pct: 20 };
+      if (lp > 0) return { tier: 'gold', top: 'Top 40%', pct: 40 };
+      if (lp === 0) return { tier: 'silver', top: 'Top 50%', pct: 50 };
+      return { tier: 'grandmaster', top: 'Âm LP', pct: 75 };
+    }
+    case 'numComps': {
+      const c = Number(val);
+      if (c >= 14) return { tier: 'diamond', top: 'Top 8%', pct: 8 };
+      if (c >= 10) return { tier: 'platinum', top: 'Top 20%', pct: 20 };
+      if (c >= 6) return { tier: 'gold', top: 'Top 45%', pct: 45 };
+      return { tier: 'silver', top: 'Top 75%', pct: 75 };
+    }
+    default:
+      return null;
+  }
 }
 
 // Accepts "Name#Tag" or a MetaTFT player URL (…/player/vn/Name-Tag).

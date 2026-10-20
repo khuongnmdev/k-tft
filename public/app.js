@@ -1,5 +1,5 @@
-import * as core from './core.js?v=1.1.4';
-import * as i18n from './i18n.js?v=1.1.4';
+import * as core from './core.js?v=1.1.5';
+import * as i18n from './i18n.js?v=1.1.5';
 
 const t = i18n.t;
 
@@ -572,8 +572,19 @@ function renderPatchOptions() {
   state.patch = sel.value;
 }
 
-function tile(k, v, cls = '') {
-  return `<div class="tile"><div class="v ${cls}">${v}</div><div class="k">${k}</div></div>`;
+function tile(k, v, statKey = null, rawVal = null, extraCls = '') {
+  const statRank = statKey ? core.getStatServerRank(statKey, rawVal) : null;
+  const tierCls = statRank ? `tier-${statRank.tier}` : '';
+  const tooltip = statRank
+    ? `${k}: ${v} (${statRank.top} ${t('serverStandingLabel')} · ${core.getTierName(statRank.tier, i18n.getLang())})`
+    : '';
+
+  return `
+    <div class="tile ${tierCls}" ${tooltip ? `title="${esc(tooltip)}"` : ''}>
+      <div class="v ${tierCls} ${extraCls}">${v}</div>
+      <div class="k">${k}</div>
+      ${statRank ? `<div class="tile-tag ${tierCls}"><span class="tile-tag-dot"></span>${statRank.top}</div>` : ''}
+    </div>`;
 }
 
 function renderPlayerCard(matches, groups) {
@@ -640,12 +651,12 @@ function renderPlayerCard(matches, groups) {
       ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
     </div>
     <div class="tiles">
-      ${tile(t('tileGames'), s.games)}
-      ${tile(t('tileAvgPlace'), num(s.avgPlace))}
-      ${tile(t('tileTop4'), pct(s.top4Rate))}
-      ${tile(t('tileTop1'), pct(s.winRate))}
-      ${tile(t('tileNetLp'), signed(s.lpNet), signCls(s.lpNet))}
-      ${tile(t('tileNumComps'), groups.length)}
+      ${tile(t('tileGames'), s.games, 'games', s.games)}
+      ${tile(t('tileAvgPlace'), num(s.avgPlace), 'avgPlace', s.avgPlace)}
+      ${tile(t('tileTop4'), pct(s.top4Rate), 'top4Rate', s.top4Rate)}
+      ${tile(t('tileTop1'), pct(s.winRate), 'winRate', s.winRate)}
+      ${tile(t('tileNetLp'), signed(s.lpNet), 'lpNet', s.lpNet, signCls(s.lpNet))}
+      ${tile(t('tileNumComps'), groups.length, 'numComps', groups.length)}
     </div>`;
 }
 
