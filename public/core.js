@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.1.3';
+export const APP_VERSION = '1.1.4';
 
 export const RANKED_QUEUE = 1100;
 
@@ -537,6 +537,194 @@ export function summarize(matches) {
     if (m.lpDelta != null) lpNet += m.lpDelta;
   }
   return { games: n, avgPlace: place / n, top4Rate: top4 / n, winRate: wins / n, lpNet };
+}
+
+// ---------- Player Titles (Danh hiệu kỳ thủ) ----------
+
+export function extractCompBaseName(label) {
+  if (!label) return '';
+  const words = label.trim().split(/\s+/);
+  return words.length >= 2 ? words.slice(0, -1).join(' ') : label;
+}
+
+export function computePlayerTitles(matches, groups, profile, t = null) {
+  const tr = t ?? ((k, vars = {}) => {
+    let s = k;
+    for (const [key, val] of Object.entries(vars)) s = s.replaceAll(`{${key}}`, val);
+    return s;
+  });
+
+  const titles = [];
+  const totalGames = matches.length;
+  if (!totalGames) return titles;
+
+  const s = summarize(matches);
+
+  // 1. Comp Mastery Title (based on most played comp)
+  const sortedComps = [...groups].sort((a, b) => b.games - a.games);
+  const topComp = sortedComps[0];
+  if (topComp && topComp.games >= 5) {
+    const baseName = extractCompBaseName(topComp.label);
+    if (topComp.games >= 20) {
+      titles.push({
+        type: 'title-comp',
+        icon: '👑',
+        name: tr('titleKingOf', { name: baseName }),
+        desc: tr('titleDescKingOf', { games: topComp.games, comp: topComp.label }),
+        priority: 100,
+      });
+    } else if (topComp.games >= 12) {
+      titles.push({
+        type: 'title-comp',
+        icon: '⚔️',
+        name: tr('titleLordOf', { name: baseName }),
+        desc: tr('titleDescLordOf', { games: topComp.games, comp: topComp.label }),
+        priority: 90,
+      });
+    } else {
+      titles.push({
+        type: 'title-comp',
+        icon: '🌟',
+        name: tr('titleMasterOf', { name: baseName }),
+        desc: tr('titleDescMasterOf', { games: topComp.games, comp: topComp.label }),
+        priority: 80,
+      });
+    }
+  }
+
+  // 2. Playstyle / Specialization (One-trick or Flex)
+  if (topComp && totalGames >= 15 && (topComp.games / totalGames) >= 0.35) {
+    titles.push({
+      type: 'title-flex',
+      icon: '🎯',
+      name: tr('titleOneTrick'),
+      desc: tr('titleDescOneTrick', { pct: Math.round((topComp.games / totalGames) * 100), comp: topComp.label }),
+      priority: 85,
+    });
+  } else if (groups.length >= 10 && totalGames >= 25) {
+    titles.push({
+      type: 'title-flex',
+      icon: '🃏',
+      name: tr('titleFlexMaster'),
+      desc: tr('titleDescFlexMaster', { n: groups.length }),
+      priority: 75,
+    });
+  }
+
+  // 3. Match Volume (Grinder) Title
+  if (totalGames >= 300) {
+    titles.push({
+      type: 'title-grind',
+      icon: '⚡',
+      name: tr('titleTftMachine'),
+      desc: tr('titleDescTftMachine', { n: totalGames }),
+      priority: 70,
+    });
+  } else if (totalGames >= 150) {
+    titles.push({
+      type: 'title-grind',
+      icon: '⚔️',
+      name: tr('titleGrindLord'),
+      desc: tr('titleDescGrindLord', { n: totalGames }),
+      priority: 65,
+    });
+  } else if (totalGames >= 70) {
+    titles.push({
+      type: 'title-grind',
+      icon: '🛡️',
+      name: tr('titleVeteran'),
+      desc: tr('titleDescVeteran', { n: totalGames }),
+      priority: 60,
+    });
+  } else if (totalGames >= 25) {
+    titles.push({
+      type: 'title-grind',
+      icon: '🎖️',
+      name: tr('titleRegular'),
+      desc: tr('titleDescRegular', { n: totalGames }),
+      priority: 50,
+    });
+  } else {
+    titles.push({
+      type: 'title-grind',
+      icon: '🌱',
+      name: tr('titleNewcomer'),
+      desc: tr('titleDescNewcomer', { n: totalGames }),
+      priority: 40,
+    });
+  }
+
+  // 4. Net LP Achievement Title
+  if (s.lpNet >= 800) {
+    titles.push({
+      type: 'title-lp',
+      icon: '💰',
+      name: tr('titleLpTycoon'),
+      desc: tr('titleDescLpTycoon', { lp: s.lpNet }),
+      priority: 72,
+    });
+  } else if (s.lpNet >= 400) {
+    titles.push({
+      type: 'title-lp',
+      icon: '✨',
+      name: tr('titleLpClimber'),
+      desc: tr('titleDescLpClimber', { lp: s.lpNet }),
+      priority: 55,
+    });
+  }
+
+  // 5. High Performance / Placement Title
+  if (totalGames >= 10 && s.winRate >= 0.18) {
+    titles.push({
+      type: 'title-top4',
+      icon: '🥇',
+      name: tr('titleWinHunter'),
+      desc: tr('titleDescWinHunter', { rate: Math.round(s.winRate * 100) }),
+      priority: 68,
+    });
+  } else if (totalGames >= 15 && s.top4Rate >= 0.65) {
+    titles.push({
+      type: 'title-top4',
+      icon: '🛡️',
+      name: tr('titleTop4Maestro'),
+      desc: tr('titleDescTop4Maestro', { rate: Math.round(s.top4Rate * 100) }),
+      priority: 66,
+    });
+  } else if (totalGames >= 15 && s.top4Rate >= 0.52) {
+    titles.push({
+      type: 'title-top4',
+      icon: '📈',
+      name: tr('titleTop4Specialist'),
+      desc: tr('titleDescTop4Specialist', { rate: Math.round(s.top4Rate * 100) }),
+      priority: 52,
+    });
+  }
+
+  // 6. Server Standing Title
+  const sr = profile?.server_rank;
+  if (sr?.rank && sr?.total) {
+    const topVal = (sr.rank / sr.total) * 100;
+    if (topVal <= 0.1 || sr.rank <= 100) {
+      titles.push({
+        type: 'title-server',
+        icon: '🌟',
+        name: tr('titleServerElite'),
+        desc: tr('titleDescServerElite', { top: topVal < 0.01 ? '<0.01' : topVal.toFixed(1) }),
+        priority: 95,
+      });
+    } else if (topVal <= 1.0 || sr.rank <= 500) {
+      titles.push({
+        type: 'title-server',
+        icon: '🔥',
+        name: tr('titleServerGrandmaster'),
+        desc: tr('titleDescServerGrandmaster', { top: topVal.toFixed(1) }),
+        priority: 85,
+      });
+    }
+  }
+
+  // Sort by priority descending and take top 4
+  return titles.sort((a, b) => b.priority - a.priority).slice(0, 4);
 }
 
 // ---------- Input parsing ----------

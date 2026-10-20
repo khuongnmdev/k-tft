@@ -449,7 +449,8 @@ main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; display: grid
 .hint { margin: 0; color: var(--text-muted); font-size: 13px; }
 
 /* Player card */
-.player-card { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; }
+.player-card { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; justify-content: space-between; }
+.player-id { min-width: 280px; max-width: 520px; flex: 1 1 360px; }
 .player-id h1 { margin: 0; font-size: 22px; }
 .player-id h1 small { color: var(--text-muted); font-weight: 400; }
 .player-id .rank {
@@ -589,7 +590,101 @@ main { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; display: grid
   color: var(--tier-iron);
 }
 
-.tiles { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Player Titles (Danh hiệu kỳ thủ) */
+.player-titles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.35;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  user-select: none;
+  cursor: default;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.title-badge:hover {
+  transform: translateY(-1.5px);
+  filter: brightness(1.15);
+}
+
+.title-badge .title-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.title-badge.title-comp {
+  background: linear-gradient(135deg, rgba(245, 176, 65, 0.2), rgba(217, 119, 6, 0.12));
+  border-color: rgba(245, 176, 65, 0.5);
+  color: #fbbf24;
+  box-shadow: 0 0 12px rgba(245, 176, 65, 0.18);
+}
+
+.title-badge.title-grind {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(14, 165, 233, 0.1));
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.12);
+}
+
+.title-badge.title-lp {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.1));
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.title-badge.title-top4 {
+  background: linear-gradient(135deg, rgba(192, 132, 252, 0.2), rgba(168, 85, 247, 0.1));
+  border-color: rgba(192, 132, 252, 0.5);
+  color: #c084fc;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.15);
+}
+
+.title-badge.title-flex {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.2), rgba(20, 184, 166, 0.1));
+  border-color: rgba(45, 212, 191, 0.5);
+  color: #2dd4bf;
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.15);
+}
+
+.title-badge.title-server {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(245, 158, 11, 0.15));
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #f87171;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.18);
+}
+
+/* Comp table favorite badge */
+.comp-fav-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(245, 176, 65, 0.15);
+  border: 1px solid rgba(245, 176, 65, 0.4);
+  color: #fbbf24;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tiles { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
 .tile {
   background: var(--surface-2);
   border-radius: 8px;

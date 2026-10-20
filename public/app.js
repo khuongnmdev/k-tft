@@ -1,5 +1,5 @@
-import * as core from './core.js?v=1.1.3';
-import * as i18n from './i18n.js?v=1.1.3';
+import * as core from './core.js?v=1.1.4';
+import * as i18n from './i18n.js?v=1.1.4';
 
 const t = i18n.t;
 
@@ -611,6 +611,21 @@ function renderPlayerCard(matches, groups) {
     ? `<div class="sub">${t('peakRank', { rank: `<span class="tier-val tier-${peakTier}">${esc(ranked.peak_rating)}</span>` })}</div>`
     : '';
 
+  const titles = core.computePlayerTitles(matches, groups, p, t);
+  const titlesHtml = titles.length
+    ? `<div class="player-titles">
+        ${titles
+          .map(
+            (tItem) => `
+          <span class="title-badge ${tItem.type}" title="${esc(tItem.desc)}">
+            <span class="title-icon">${tItem.icon}</span>
+            <span class="title-name">${esc(tItem.name)}</span>
+          </span>`,
+          )
+          .join('')}
+      </div>`
+    : '';
+
   $('player-card').innerHTML = `
     <div class="player-id">
       <h1>${esc(name)} <small>#${esc(tag)}</small></h1>
@@ -620,6 +635,7 @@ function renderPlayerCard(matches, groups) {
       </div>
       <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${serverRankHtml}</div>
       ${peakRankHtml}
+      ${titlesHtml}
       ${partial}
       ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
     </div>
@@ -649,6 +665,7 @@ function placesHtml(ms) {
 
 function renderTable(groups) {
   const { key, asc } = state.sort;
+  const maxCompGames = Math.max(...groups.map((g) => g.games), 0);
   const rows = groups
     .filter((g) => g.games >= state.minGames || g.key === state.selected)
     .sort((a, b) => {
@@ -667,12 +684,16 @@ function renderTable(groups) {
 
   $('comps-table').tBodies[0].innerHTML = rows.length
     ? rows
-        .map(
-          (g) => `
+        .map((g) => {
+          const isFav = g.games === maxCompGames && g.games >= 5;
+          const favBadge = isFav
+            ? `<span class="comp-fav-badge" title="${esc(t('compFavTitle', { n: g.games }))}">👑 ${t('compFavTag')}</span>`
+            : '';
+          return `
       <tr data-key="${esc(g.key)}">
         <td class="left">
           <div class="comp-cell">
-            <div class="comp-name"><span class="dot" style="background:${colorOf(g.key)}"></span>${esc(g.label)}</div>
+            <div class="comp-name"><span class="dot" style="background:${colorOf(g.key)}"></span>${esc(g.label)}${favBadge}</div>
             <div class="units">${unitsHtml(g.coreUnits)}</div>
           </div>
         </td>
@@ -683,8 +704,8 @@ function renderTable(groups) {
         <td class="${signCls(g.lpGames ? g.lpNet : null)}">${g.lpGames ? signed(g.lpNet) : '—'}</td>
         <td class="${signCls(g.lpPerGame)}">${signed(g.lpPerGame, 1)}</td>
         <td class="left"><div class="places">${placesHtml(g.matches)}</div></td>
-      </tr>`,
-        )
+      </tr>`;
+        })
         .join('')
     : `<tr><td colspan="8" class="left muted">${t('noCompsMatched')}</td></tr>`;
 }
