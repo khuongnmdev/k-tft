@@ -110,6 +110,10 @@ function toDirectUrl(path) {
     const tag = u.searchParams.get('tag');
     return `https://api.metatft.com/public/profile/refresh_by_riotid/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?source=full_profile`;
   }
+  if (u.pathname === '/api/search') {
+    const query = u.searchParams.get('q') || '';
+    return `https://api.metatft.com/public/search/${encodeURIComponent(query)}`;
+  }
   return path;
 }
 
@@ -381,6 +385,67 @@ function syncUrl() {
   history.replaceState(null, '', url);
 }
 
+const RECENT_SEARCHES_KEY = 'k-tft:recent-players';
+
+function getRecentSearches() {
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearch(player) {
+  if (!player?.name || !player?.tag) return;
+  try {
+    const list = getRecentSearches().filter(
+      (x) =>
+        !(
+          x.region === player.region &&
+          x.name.toLowerCase() === player.name.toLowerCase() &&
+          x.tag.toLowerCase() === player.tag.toLowerCase()
+        )
+    );
+    list.unshift({
+      region: player.region,
+      name: player.name,
+      tag: player.tag,
+      icon: player.icon ?? null,
+      rating: player.rating ?? null,
+      games: player.games ?? null,
+      time: Date.now(),
+    });
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list.slice(0, 8)));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function removeRecentSearch(region, name, tag) {
+  try {
+    const list = getRecentSearches().filter(
+      (x) =>
+        !(
+          x.region === region &&
+          x.name.toLowerCase() === name.toLowerCase() &&
+          x.tag.toLowerCase() === tag.toLowerCase()
+        )
+    );
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(list));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function clearRecentSearches() {
+  try {
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 function remember(p) {
   const id = `${p.name}#${p.tag}`;
   $('player').value = id;
@@ -391,6 +456,14 @@ function remember(p) {
   } catch {
     /* storage unavailable */
   }
+  saveRecentSearch({
+    region: p.region,
+    name: p.name,
+    tag: p.tag,
+    icon: state.profile?.summoner?.profile_icon_id,
+    rating: state.profile?.ranked?.rating_text,
+    games: state.profile?.ranked?.num_games,
+  });
 }
 
 function readInput() {
@@ -955,6 +1028,314 @@ function renderMatches(matches) {
 
 // ---------- wiring ----------
 
+function setupAutocomplete() {
+  const inputEl = $('player');
+  const dropdownEl = $('autocomplete-dropdown');
+  const regionEl = $('region');
+  if (!inputEl || !dropdownEl) return;
+
+  let activeIndex = -1;
+  let currentResults = [];
+  let isRecentMode = false;
+  let debounceTimer = null;
+  const searchCache = new Map();
+
+  function openDropdown() {
+    dropdownEl.hidden = false;
+  }
+
+  function closeDropdown() {
+    dropdownEl.hidden = true;
+    activeIndex = -1;
+    currentResults = [];
+    isRecentMode = false;
+  }
+
+  function updateActiveItem(scroll = true) {
+    const items = dropdownEl.querySelectorAll('.ac-item');
+    items.forEach((el, i) => {
+      el.classList.toggle('active', i === activeIndex);
+    });
+    if (scroll && activeIndex >= 0 && items[activeIndex]) {
+      items[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function selectItem(item) {
+    const regionSlug = core.regionToSlug(item.region);
+    regionEl.value = regionSlug;
+    inputEl.value = `${item.name}#${item.tag}`;
+    closeDropdown();
+    saveRecentSearch({
+      region: regionSlug,
+      name: item.name,
+      tag: item.tag,
+      icon: item.icon,
+      rating: item.rating,
+      games: item.games,
+    });
+    load({ region: regionSlug, name: item.name, tag: item.tag });
+  }
+
+  function renderRecent() {
+    const recent = getRecentSearches();
+    currentResults = recent;
+    isRecentMode = true;
+    activeIndex = -1;
+
+    if (!recent.length) {
+      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchEmptyHint'))}</div>`;
+      openDropdown();
+      return;
+    }
+
+    const itemsHtml = recent
+      .map(
+        (item, i) => `
+        <div class="ac-item" data-idx="${i}">
+          <img class="ac-avatar" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${item.icon || 29}.jpg" onerror="this.onerror=null;this.src='favicon.svg'" alt="" loading="lazy">
+          <div class="ac-info">
+            <div class="ac-name-row">
+              <span class="ac-name">${esc(item.name)}</span>
+              <span class="ac-tag">#${esc(item.tag)}</span>
+            </div>
+            ${item.rating ? `<div class="ac-detail-row"><span class="ac-tier" style="color:${core.getTierColor(item.rating)}">${esc(item.rating)}</span>${item.games ? `<span class="ac-games">· ${esc(t('searchGamesCount', { n: item.games }))}</span>` : ''}</div>` : ''}
+          </div>
+          <span class="ac-region">${esc(core.regionToLabel(item.region))}</span>
+          <button type="button" class="ac-remove" data-remove-idx="${i}" title="${esc(t('clearSel'))}">&times;</button>
+        </div>`
+      )
+      .join('');
+
+    dropdownEl.innerHTML = `
+      <div class="ac-header">
+        <span>${esc(t('searchRecentTitle'))}</span>
+        <button type="button" id="ac-clear-recent">${esc(t('searchClearRecent'))}</button>
+      </div>
+      ${itemsHtml}
+    `;
+    openDropdown();
+  }
+
+  function renderSearchResults(items, query) {
+    currentResults = items;
+    isRecentMode = false;
+    activeIndex = -1;
+
+    if (!items.length) {
+      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchNoResults'))}</div>`;
+      openDropdown();
+      return;
+    }
+
+    const itemsHtml = items
+      .map(
+        (item, i) => `
+        <div class="ac-item" data-idx="${i}">
+          <img class="ac-avatar" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${item.icon || 29}.jpg" onerror="this.onerror=null;this.src='favicon.svg'" alt="" loading="lazy">
+          <div class="ac-info">
+            <div class="ac-name-row">
+              <span class="ac-name">${esc(item.name)}</span>
+              <span class="ac-tag">#${esc(item.tag)}</span>
+            </div>
+            ${item.rating ? `<div class="ac-detail-row"><span class="ac-tier" style="color:${core.getTierColor(item.rating)}">${esc(item.rating)}</span>${item.games ? `<span class="ac-games">· ${esc(t('searchGamesCount', { n: item.games }))}</span>` : ''}</div>` : ''}
+          </div>
+          <span class="ac-region">${esc(core.regionToLabel(item.region))}</span>
+        </div>`
+      )
+      .join('');
+
+    dropdownEl.innerHTML = `
+      <div class="ac-header">
+        <span>${esc(t('searchSuggestedTitle'))} (${items.length})</span>
+      </div>
+      ${itemsHtml}
+    `;
+    openDropdown();
+  }
+
+  function renderLoading() {
+    dropdownEl.innerHTML = `
+      <div class="ac-message">
+        <div class="ac-spinner"></div>
+        <span>${esc(t('searchSearching'))}</span>
+      </div>
+    `;
+    openDropdown();
+  }
+
+  async function triggerSearch(q) {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      renderRecent();
+      return;
+    }
+    const urlMatch = /metatft\.com\/player\/([a-z0-9]+)\/([^/?#]+)/i.exec(trimmed);
+    if (urlMatch) {
+      closeDropdown();
+      return;
+    }
+
+    if (trimmed.length < 2) {
+      renderRecent();
+      return;
+    }
+
+    const cacheKey = trimmed.toLowerCase();
+    if (searchCache.has(cacheKey)) {
+      renderSearchResults(searchCache.get(cacheKey), trimmed);
+      return;
+    }
+
+    renderLoading();
+
+    try {
+      const res = await api(`/api/search?q=${encodeURIComponent(trimmed)}`);
+      const rawList = Array.isArray(res) ? res : res?.data || res?.results || [];
+
+      const curRegionSlug = regionEl.value.toLowerCase();
+      const curRegionApi = core.REGIONS.find((r) => r.slug === curRegionSlug)?.api?.toLowerCase() || '';
+
+      const mapped = rawList
+        .map((raw) => {
+          const riotId = String(raw.riot_id || raw.name || '');
+          const hashIdx = riotId.lastIndexOf('#');
+          const name = hashIdx > 0 ? riotId.slice(0, hashIdx).trim() : riotId.trim();
+          const tag = hashIdx > 0 ? riotId.slice(hashIdx + 1).trim() : '';
+          const rawRegion = String(raw.region || '').toLowerCase();
+          const slug = core.regionToSlug(rawRegion);
+          return {
+            rawRegion,
+            region: slug,
+            name,
+            tag,
+            icon: raw.profile_icon_id ?? null,
+            rating: raw.rating || null,
+            games: raw.rating_num_played ?? null,
+          };
+        })
+        .filter((x) => x.name && x.tag);
+
+      mapped.sort((a, b) => {
+        const aMatches = a.rawRegion === curRegionApi || a.region === curRegionSlug;
+        const bMatches = b.rawRegion === curRegionApi || b.region === curRegionSlug;
+        if (aMatches && !bMatches) return -1;
+        if (!aMatches && bMatches) return 1;
+        const aScore = (a.games || 0) + (a.rating ? 50 : 0);
+        const bScore = (b.games || 0) + (b.rating ? 50 : 0);
+        return bScore - aScore;
+      });
+
+      const top10 = mapped.slice(0, 10);
+      searchCache.set(cacheKey, top10);
+      if (inputEl.value.trim().toLowerCase() === cacheKey) {
+        renderSearchResults(top10, trimmed);
+      }
+    } catch (err) {
+      console.warn('Search error:', err);
+      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchNoResults'))}</div>`;
+      openDropdown();
+    }
+  }
+
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = inputEl.value;
+    if (!q.trim()) {
+      renderRecent();
+    } else if (q.trim().length >= 2) {
+      debounceTimer = setTimeout(() => triggerSearch(q), 250);
+    } else {
+      renderRecent();
+    }
+  });
+
+  inputEl.addEventListener('focus', () => {
+    const q = inputEl.value;
+    if (!q.trim()) {
+      renderRecent();
+    } else if (q.trim().length >= 2) {
+      triggerSearch(q);
+    }
+  });
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (dropdownEl.hidden) {
+      if (e.key === 'ArrowDown') {
+        const q = inputEl.value;
+        if (!q.trim()) renderRecent();
+        else triggerSearch(q);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!currentResults.length) return;
+      activeIndex = (activeIndex + 1) % currentResults.length;
+      updateActiveItem(true);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!currentResults.length) return;
+      activeIndex = (activeIndex - 1 + currentResults.length) % currentResults.length;
+      updateActiveItem(true);
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0 && currentResults[activeIndex]) {
+        e.preventDefault();
+        selectItem(currentResults[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeDropdown();
+    }
+  });
+
+  dropdownEl.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.ac-remove');
+    if (removeBtn) {
+      e.stopPropagation();
+      const idx = Number(removeBtn.dataset.removeIdx);
+      const item = currentResults[idx];
+      if (item) {
+        removeRecentSearch(item.region, item.name, item.tag);
+        renderRecent();
+      }
+      return;
+    }
+    const clearBtn = e.target.closest('#ac-clear-recent');
+    if (clearBtn) {
+      e.stopPropagation();
+      clearRecentSearches();
+      renderRecent();
+      return;
+    }
+    const itemEl = e.target.closest('.ac-item');
+    if (itemEl) {
+      const idx = Number(itemEl.dataset.idx);
+      const item = currentResults[idx];
+      if (item) selectItem(item);
+    }
+  });
+
+  dropdownEl.addEventListener('mousemove', (e) => {
+    const itemEl = e.target.closest('.ac-item');
+    if (itemEl) {
+      const idx = Number(itemEl.dataset.idx);
+      if (idx !== activeIndex && !isNaN(idx)) {
+        activeIndex = idx;
+        updateActiveItem(false);
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-input-wrap')) {
+      closeDropdown();
+    }
+  });
+}
+
 function init() {
   Chart.defaults.color = TEXT2;
   Chart.defaults.borderColor = GRID;
@@ -991,8 +1372,11 @@ function init() {
     .join('');
   $('group-mode').value = state.groupMode;
 
+  setupAutocomplete();
+
   $('search').addEventListener('submit', (e) => {
     e.preventDefault();
+    $('autocomplete-dropdown').hidden = true;
     const p = readInput();
     if (p) load(p);
   });

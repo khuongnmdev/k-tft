@@ -66,7 +66,10 @@
     <div class="brand">k-tft <span data-i18n="brandSub">thống kê đội hình</span></div>
     <form id="search" class="search" autocomplete="off">
       <select id="region" aria-label="Server"></select>
-      <input id="player" type="text" placeholder="Tên#Tag hoặc link MetaTFT" aria-label="Riot ID" data-i18n-ph="playerPlaceholder">
+      <div class="search-input-wrap">
+        <input id="player" type="text" placeholder="Tên#Tag hoặc link MetaTFT" aria-label="Riot ID" data-i18n-ph="playerPlaceholder" autocomplete="off" spellcheck="false">
+        <div id="autocomplete-dropdown" class="autocomplete-dropdown" hidden></div>
+      </div>
       <button type="submit" data-i18n="viewBtn">Xem</button>
       <button type="button" id="refresh" class="ghost" title="Yêu cầu MetaTFT cập nhật trận mới" data-i18n="refreshBtn" data-i18n-title="refreshBtnTitle">Cập nhật</button>
     </form>

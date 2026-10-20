@@ -82,6 +82,15 @@ const routes = {
       ttl: 0,
     };
   },
+
+  '/api/search': (q) => {
+    const query = q.get('q') ?? '';
+    if (!query.trim()) return { error: 'Thiếu query' };
+    return {
+      url: `https://api.metatft.com/public/search/${enc(query.trim())}`,
+      ttl: 5 * MIN,
+    };
+  },
 };
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {

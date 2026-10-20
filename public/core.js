@@ -534,7 +534,38 @@ export const REGIONS = [
   { slug: 'th', api: 'TH2', label: 'TH' },
   { slug: 'ph', api: 'PH2', label: 'PH' },
   { slug: 'me', api: 'ME1', label: 'ME' },
+  { slug: 'pbe', api: 'PBE1', label: 'PBE' },
 ];
+
+export function regionToSlug(apiOrSlug) {
+  if (!apiOrSlug) return 'vn';
+  const s = String(apiOrSlug).toLowerCase();
+  const found = REGIONS.find((r) => r.slug === s || r.api.toLowerCase() === s);
+  return found ? found.slug : s;
+}
+
+export function regionToLabel(apiOrSlug) {
+  if (!apiOrSlug) return 'VN';
+  const s = String(apiOrSlug).toLowerCase();
+  const found = REGIONS.find((r) => r.slug === s || r.api.toLowerCase() === s);
+  return found ? found.label : s.toUpperCase();
+}
+
+export function getTierColor(ratingText) {
+  if (!ratingText) return 'var(--text-muted)';
+  const t = ratingText.toUpperCase();
+  if (t.includes('CHALLENGER')) return '#f5b041';
+  if (t.includes('GRANDMASTER')) return '#e74c3c';
+  if (t.includes('MASTER')) return '#d55181';
+  if (t.includes('DIAMOND')) return '#3987e5';
+  if (t.includes('EMERALD')) return '#199e70';
+  if (t.includes('PLATINUM')) return '#24a896';
+  if (t.includes('GOLD')) return '#e9b949';
+  if (t.includes('SILVER')) return '#8ba2a7';
+  if (t.includes('BRONZE')) return '#a77044';
+  if (t.includes('IRON')) return '#8c857b';
+  return 'var(--text-secondary)';
+}
 
 // Accepts "Name#Tag" or a MetaTFT player URL (…/player/vn/Name-Tag).
 export function parsePlayerInput(text, regionSlug) {
