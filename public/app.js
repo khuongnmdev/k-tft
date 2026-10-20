@@ -1,5 +1,5 @@
-import * as core from './core.js?v=1.1.1';
-import * as i18n from './i18n.js?v=1.1.1';
+import * as core from './core.js?v=1.1.2';
+import * as i18n from './i18n.js?v=1.1.2';
 
 const t = i18n.t;
 
@@ -1085,7 +1085,7 @@ function renderLobbyHtml(matchData, matchId) {
         : `<button type="button" class="player-link" data-name="${esc(pName)}" data-tag="${esc(pTag)}" title="${esc(t('matchViewProfile', { name: pName, tag: pTag }))}">${esc(pName)} <small>#${esc(pTag)}</small></button>`;
 
       const place = p.placement ?? '?';
-      return `
+      const playerHtml = `
         <div class="lobby-player ${isSelf ? 'is-self' : ''}">
           <div class="place-badge ${place === 1 ? 'p1' : place <= 4 ? 'top4' : ''}">${place}</div>
           <div class="player-col">
@@ -1097,9 +1097,18 @@ function renderLobbyHtml(matchData, matchId) {
               ${dmgText ? `<span class="stat-dmg">${dmgText}</span>` : ''}
             </div>
           </div>
-          <div class="player-traits">${traitsHtml}</div>
-          <div class="board">${boardHtml(pUnits)}</div>
+          <div class="lobby-board-col">
+            <div class="board">${boardHtml(pUnits)}</div>
+          </div>
+          <div class="lobby-traits-col">
+            <div class="player-traits">${traitsHtml}</div>
+          </div>
         </div>`;
+
+      if (p.placement === 4) {
+        return playerHtml + `<div class="lobby-rank-split"><span class="top4-pill">${t('lobbyTop4')}</span><span class="split-line"></span><span class="bot4-pill">${t('lobbyBot4')}</span></div>`;
+      }
+      return playerHtml;
     })
     .join('');
 
@@ -1107,6 +1116,12 @@ function renderLobbyHtml(matchData, matchId) {
     <div class="lobby-container">
       <div class="lobby-header">
         <h4>${t('matchLobbyTitle')}</h4>
+      </div>
+      <div class="lobby-subhead">
+        <span class="lsh-rank">${t('lobbyColRank')}</span>
+        <span class="lsh-player">${t('lobbyColPlayer')}</span>
+        <span class="lsh-board">${t('lobbyColBoard')}</span>
+        <span class="lsh-traits">${t('lobbyColTraits')}</span>
       </div>
       <div class="lobby-list">${rows}</div>
     </div>`;

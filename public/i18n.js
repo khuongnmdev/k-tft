@@ -103,6 +103,12 @@ export const TRANSLATIONS = {
     matchClickToExpand: 'Bấm để xem chi tiết 8 người chơi',
     matchClickToCollapse: 'Bấm để thu gọn',
     matchViewProfile: 'Xem thống kê {name}#{tag}',
+    lobbyColRank: 'Hạng',
+    lobbyColPlayer: 'Người chơi',
+    lobbyColBoard: 'Đội hình',
+    lobbyColTraits: 'Tộc / Hệ',
+    lobbyTop4: 'Top 4 (Thắng)',
+    lobbyBot4: 'Bot 4 (Thua)',
 
     // Tiles
     tileGames: 'Trận',
@@ -251,6 +257,12 @@ export const TRANSLATIONS = {
     matchClickToExpand: 'Click to view 8-player lobby',
     matchClickToCollapse: 'Click to collapse',
     matchViewProfile: 'View stats for {name}#{tag}',
+    lobbyColRank: 'Rank',
+    lobbyColPlayer: 'Player',
+    lobbyColBoard: 'Board',
+    lobbyColTraits: 'Traits',
+    lobbyTop4: 'Top 4',
+    lobbyBot4: 'Bot 4',
 
     // Tiles
     tileGames: 'Games',
