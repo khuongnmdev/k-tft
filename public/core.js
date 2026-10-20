@@ -16,6 +16,16 @@ export const QUEUE_NAMES = {
   6120: "Pengu's Party",
 };
 
+export function queueLabel(queueId, t = null) {
+  if (t) {
+    if (queueId === 1090) return t('queueNormal');
+    if (queueId === 1100) return t('queueRanked');
+    if (queueId === 1130) return t('queueHyperRoll');
+    if (queueId === 1160) return t('queueDoubleUp');
+  }
+  return QUEUE_NAMES[queueId] ?? `Queue ${queueId}`;
+}
+
 // "TFTSet17" -> "Set 17", "TFTSet9_2" -> "Set 9.5"
 export function setLabel(set) {
   const m = /^TFTSet(\d+)(?:_(\d+))?$/.exec(set ?? '');
@@ -386,10 +396,12 @@ export const GROUP_MODES = {
   trait: 'Tộc/Hệ chính',
 };
 
-export function classify(matches, mode, clusters) {
+export function classify(matches, mode, clusters, t = null) {
+  const offMetaText = t ? t('offMeta') : '(ngoài meta)';
+  const noTraitText = t ? t('noTrait') : 'Không tộc';
   for (const m of matches) {
     const carry = m.carry ? m.carry.name : '?';
-    const trait = m.mainTrait ? m.mainTrait.name : 'Không tộc';
+    const trait = m.mainTrait ? m.mainTrait.name : noTraitText;
     let key;
     let label;
     let score = null;
@@ -409,7 +421,7 @@ export function classify(matches, mode, clusters) {
         label = best.label;
       } else {
         key = `x:${trait}|${carry}`;
-        label = `${trait} ${carry} (ngoài meta)`;
+        label = `${trait} ${carry} ${offMetaText}`;
       }
     } else if (mode === 'carry') {
       key = `u:${carry}`;

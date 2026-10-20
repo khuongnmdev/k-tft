@@ -50,6 +50,17 @@ button, input, select { font: inherit; color: inherit; }
 .brand { font-weight: 700; font-size: 18px; }
 .brand span { font-weight: 400; color: var(--text-muted); font-size: 14px; margin-left: 6px; }
 
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.lang-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
 .search { display: flex; gap: 8px; flex: 1; max-width: 640px; }
 .search input { flex: 1; min-width: 0; }
 .search input, .search select, .controls select {

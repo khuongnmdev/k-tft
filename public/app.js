@@ -1,4 +1,7 @@
 import * as core from './core.js';
+import * as i18n from './i18n.js';
+
+const t = i18n.t;
 
 // Categorical slots (dark-surface steps of the validated reference palette), fixed order.
 const PALETTE = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
@@ -59,7 +62,9 @@ function hexA(hex, a) {
 function fmtDate(ts) {
   const d = new Date(ts);
   const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return i18n.getLang() === 'vi'
+    ? `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`
+    : `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function fmtDuration(sec) {
@@ -83,7 +88,8 @@ function toDirectUrl(path) {
   }
   if (u.pathname === '/api/lookup') {
     const set = u.searchParams.get('set');
-    return `https://data.metatft.com/lookups/${set}_latest_en_us.json`;
+    const lang = u.searchParams.get('lang') || i18n.getMetaTftLocale();
+    return `https://data.metatft.com/lookups/${set}_latest_${lang}.json`;
   }
   if (u.pathname === '/api/comps') {
     const queue = u.searchParams.get('queue') || '1100';
@@ -153,6 +159,49 @@ const playerKey = (p) => `${p.region}|${p.name}#${p.tag}`.toLowerCase();
 // MetaTFT keeps comp clusters only for recent sets; older ones fall back to trait + carry.
 const effectiveMode = () => (state.groupMode === 'cluster' && !state.clusters.length ? 'traitCarry' : state.groupMode);
 
+// ---------- i18n DOM updates ----------
+
+function applyTranslations() {
+  document.title = t('appTitle');
+  document.documentElement.lang = i18n.getLang();
+  $('lang-select').value = i18n.getLang();
+
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    el.textContent = t(el.dataset.i18n);
+  }
+  for (const el of document.querySelectorAll('[data-i18n-ph]')) {
+    el.placeholder = t(el.dataset.i18nPh);
+  }
+  for (const el of document.querySelectorAll('[data-i18n-title]')) {
+    el.title = t(el.dataset.i18nTitle);
+  }
+
+  // Update min-games select
+  const minSel = $('min-games');
+  for (const opt of minSel.options) {
+    opt.textContent = t('minGamesUnit', { n: opt.value });
+  }
+
+  // Update group-mode labels
+  const groupSel = $('group-mode');
+  for (const opt of groupSel.options) {
+    if (opt.value === 'cluster') opt.textContent = t('groupCluster');
+    else if (opt.value === 'traitCarry') opt.textContent = t('groupTraitCarry');
+    else if (opt.value === 'carry') opt.textContent = t('groupCarry');
+    else if (opt.value === 'trait') opt.textContent = t('groupTrait');
+  }
+
+  // Update queue labels
+  const qRanked = $('queue').querySelector('option[value="1100"]');
+  if (qRanked) qRanked.textContent = t('queueRanked');
+  const qAll = $('queue').querySelector('option[value="all"]');
+  if (qAll) qAll.textContent = t('queueAll');
+
+  // Update patch 'all'
+  const patchAll = $('patch').querySelector('option[value="all"]');
+  if (patchAll) patchAll.textContent = t('patchAll');
+}
+
 // ---------- loading ----------
 
 async function detectCurrentSet() {
@@ -167,14 +216,17 @@ async function detectCurrentSet() {
   return state.currentSet;
 }
 
-function getLookup(set) {
-  if (!lookupCache.has(set)) {
+function getLookup(set, lang = i18n.getMetaTftLocale()) {
+  const cacheKey = `${set}_${lang}`;
+  if (!lookupCache.has(cacheKey)) {
     const base = set.replace(/_\d+$/, ''); // Set 9.5 has no lookup of its own; it shares Set 9's
-    const p = api(`/api/lookup?set=${set}`).catch((err) => (base !== set ? api(`/api/lookup?set=${base}`) : Promise.reject(err)));
-    p.catch(() => lookupCache.delete(set));
-    lookupCache.set(set, p);
+    const p = api(`/api/lookup?set=${set}&lang=${lang}`).catch((err) =>
+      base !== set ? api(`/api/lookup?set=${base}&lang=${lang}`) : Promise.reject(err),
+    );
+    p.catch(() => lookupCache.delete(cacheKey));
+    lookupCache.set(cacheKey, p);
   }
-  return lookupCache.get(set);
+  return lookupCache.get(cacheKey);
 }
 
 function getComps(set) {
@@ -195,13 +247,13 @@ async function load(player, { set = null, fresh = false, retried = false } = {})
   const samePlayer = !!state.player && playerKey(state.player) === playerKey(player);
   const current = await detectCurrentSet();
   let wanted = set ?? (samePlayer ? state.set : null) ?? current;
-  setStatus(`Đang tải ${wanted ? `${core.setLabel(wanted)} của ` : ''}${player.name}#${player.tag}…`);
+  setStatus(t('loadingPlayer', { season: wanted ? `${core.setLabel(wanted)} ` : '', name: player.name, tag: player.tag }));
   let retryAfterRefresh = false;
   try {
     const profile = await api(`/api/profile?${profileQuery(player)}${wanted ? `&set=${wanted}` : ''}${fresh ? '&fresh=1' : ''}`);
     wanted ??= profile.matches?.[0]?.tft_set ?? null;
-    if (!wanted) throw new Error('Không xác định được mùa hiện tại.');
-    const [setData, comps] = await Promise.all([getLookup(wanted), getComps(wanted)]);
+    if (!wanted) throw new Error(t('determiningSeasonError'));
+    const [setData, comps] = await Promise.all([getLookup(wanted, i18n.getMetaTftLocale()), getComps(wanted)]);
 
     if (!samePlayer) state.seasons = new Map();
     state.player = player;
@@ -227,18 +279,17 @@ async function load(player, { set = null, fresh = false, retried = false } = {})
     $('group-mode').value = effectiveMode();
 
     remember(player);
-    setStatus(state.all.length ? null : `Không có trận nào trong ${core.setLabel(wanted)}.`);
+    setStatus(state.all.length ? null : t('noMatchesInSeason', { season: core.setLabel(wanted) }));
     render();
   } catch (err) {
     console.error(err);
     if (err.status === 404 && !retried) {
-      // MetaTFT queues a fetch for unknown players; wait for it once before giving up.
       retryAfterRefresh = true;
     } else {
       const msg =
         err.status === 404
-          ? `Không tìm thấy ${player.name}#${player.tag} trên MetaTFT. Kiểm tra lại tên, tag và server.`
-          : `Lỗi khi tải dữ liệu: ${err.message}`;
+          ? t('notFoundError', { name: player.name, tag: player.tag })
+          : t('loadError', { msg: err.message });
       setStatus(msg, true);
     }
   } finally {
@@ -250,25 +301,29 @@ async function load(player, { set = null, fresh = false, retried = false } = {})
 }
 
 function renderSeasonOptions() {
+  const sel = $('season');
   const sets = [...state.seasons.keys()].sort((a, b) => core.setOrder(b) - core.setOrder(a));
-  $('season').innerHTML = sets
+  sel.innerHTML = sets
     .map((s) => {
       const rank = state.seasons.get(s);
-      const label = `${core.setLabel(s)}${s === state.currentSet ? ' (hiện tại)' : ''}${rank ? ` · ${rank}` : ''}`;
-      return `<option value="${esc(s)}">${esc(label)}</option>`;
+      const isCur = s === state.currentSet;
+      const tag = isCur ? ` (${i18n.getLang() === 'vi' ? 'mùa này' : 'current'})` : '';
+      const rText = rank ? ` · ${rank}` : '';
+      return `<option value="${s}">${esc(core.setLabel(s))}${tag}${esc(rText)}</option>`;
     })
     .join('');
-  $('season').value = state.set;
+  sel.value = state.set;
 }
 
-async function refreshPlayer(player = null, retried = false) {
-  const p = player ?? readInput() ?? state.player;
-  if (!p) return;
+async function refreshPlayer(player = state.player, retried = false) {
+  if (!player) return;
+  const p = player;
   $('refresh').disabled = true;
+  setStatus(t('requestingRefresh', { name: p.name, tag: p.tag }));
   try {
-    for (const wait of [0, 2000, 3000, 5000, 8000, 10000]) {
+    for (const wait of [0, 4000, 8000, 12000]) {
       await sleep(wait);
-      setStatus(`Đang yêu cầu MetaTFT cập nhật ${p.name}#${p.tag}…`);
+      setStatus(t('requestingRefresh', { name: p.name, tag: p.tag }));
       const r = await api(`/api/refresh?${profileQuery(p)}`).catch((e) => (e.status === 404 ? { status: 'queued' } : Promise.reject(e)));
       if (r?.status !== 'queued') break;
     }
@@ -279,7 +334,7 @@ async function refreshPlayer(player = null, retried = false) {
   await load(p, { fresh: true, retried });
 }
 
-// The URL carries the whole view (player, season, filters, selected comp) so it can be shared.
+// The URL carries the whole view (player, season, filters, selected comp, language) so it can be shared.
 function syncUrl() {
   if (!state.player) return;
   const url = new URL(location.href);
@@ -292,6 +347,7 @@ function syncUrl() {
   put('q', state.queue, '1100');
   put('p', state.patch, 'all');
   put('min', String(state.minGames), '1');
+  put('lang', i18n.getLang(), i18n.DEFAULT_LANG);
   put('team', state.selected ? state.all.find((m) => m.compKey === state.selected)?.compLabel : null, null);
   history.replaceState(null, '', url);
 }
@@ -311,11 +367,11 @@ function remember(p) {
 function readInput() {
   const p = core.parsePlayerInput($('player').value, $('region').value);
   if (!p) {
-    setStatus('Nhập Riot ID dạng Tên#Tag (vd: Akite Bánh Mì#akite) hoặc dán link MetaTFT.', true);
+    setStatus(t('invalidInput'), true);
     return null;
   }
   if (!core.REGIONS.some((r) => r.slug === p.region)) {
-    setStatus(`Server “${p.region}” chưa được hỗ trợ.`, true);
+    setStatus(t('unsupportedServer', { region: p.region }), true);
     return null;
   }
   return p;
@@ -324,7 +380,6 @@ function readInput() {
 // ---------- derived data ----------
 
 function assignColors() {
-  // Colour follows the comp, ranked once on the unfiltered season so filters never repaint survivors.
   const groups = core.aggregate(state.all).sort((a, b) => b.games - a.games || a.label.localeCompare(b.label));
   state.colors = new Map();
   groups.forEach((g, i) => {
@@ -341,26 +396,28 @@ function filtered() {
 // ---------- render ----------
 
 function render() {
+  applyTranslations();
   const mode = effectiveMode();
-  core.classify(state.all, mode, state.clusters);
+  core.classify(state.all, mode, state.clusters, t);
   assignColors();
   renderPatchOptions();
   const matches = filtered();
   const groups = core.aggregate(matches);
   if (state.pendingTeam) {
-    // A shared link names the comp by its label; keys can differ between sessions.
     state.selected = groups.find((g) => g.label === state.pendingTeam)?.key ?? null;
     state.pendingTeam = null;
   }
   if (state.selected && !groups.some((g) => g.key === state.selected)) state.selected = null;
 
   const season = core.setLabel(state.set);
-  const tip = 'Bấm vào một đội để xem chart leo rank và lịch sử trận của đội đó.';
+  const tip = t('compsHint');
   $('comps-hint').textContent =
     mode === 'cluster'
-      ? `Ghép theo comp meta MetaTFT của ${season}${state.set === state.currentSet ? ' (patch hiện tại)' : ' (bản cuối mùa)'}. ${tip}`
+      ? state.set === state.currentSet
+        ? t('compsTipClusterCur', { season, tip })
+        : t('compsTipClusterOld', { season, tip })
       : state.groupMode === 'cluster'
-        ? `MetaTFT không còn comp meta cho ${season}, đang nhóm theo Tộc/Hệ chính + Carry. ${tip}`
+        ? t('compsTipFallback', { season, tip })
         : tip;
 
   for (const id of ['player-card', 'controls', 'comps-section', 'charts', 'matches-section']) $(id).hidden = false;
@@ -401,7 +458,7 @@ function renderPatchOptions() {
     b.localeCompare(a, undefined, { numeric: true }),
   );
   const sel = $('patch');
-  sel.innerHTML = `<option value="all">Tất cả</option>${patches.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}`;
+  sel.innerHTML = `<option value="all">${t('patchAll')}</option>${patches.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}`;
   sel.value = patches.includes(state.patch) ? state.patch : 'all';
   state.patch = sel.value;
 }
@@ -423,24 +480,24 @@ function renderPlayerCard(matches, groups) {
   const withLp = rankedShown.filter((m) => m.lpDelta != null).length;
   const rankedStored = state.all.filter((m) => m.queue === core.RANKED_QUEUE).length;
   const partial = ranked.num_games > rankedStored
-    ? `<div class="sub">MetaTFT chỉ còn lưu đội hình của ${rankedStored}/${ranked.num_games} trận xếp hạng mùa này.</div>`
+    ? `<div class="sub">${t('partialNotice', { stored: rankedStored, total: ranked.num_games })}</div>`
     : '';
   $('player-card').innerHTML = `
     <div class="player-id">
       <h1>${esc(name)} <small>#${esc(tag)}</small></h1>
-      <div class="rank">${esc(ranked.rating_text ?? 'Chưa có rank')}</div>
-      <div class="sub">${esc(seasonLabel)} · ${ranked.num_games ?? 0} trận xếp hạng${sr?.rank ? ` · Hạng #${sr.rank.toLocaleString('vi-VN')}${topPct}` : ''}</div>
-      ${ranked.peak_rating ? `<div class="sub">Cao nhất: ${esc(ranked.peak_rating)}</div>` : ''}
+      <div class="rank">${esc(ranked.rating_text ?? t('unranked'))}</div>
+      <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${sr?.rank ? ` · ${t('serverRank', { rank: sr.rank.toLocaleString(i18n.getLang() === 'vi' ? 'vi-VN' : 'en-US') })}${topPct}` : ''}</div>
+      ${ranked.peak_rating ? `<div class="sub">${t('peakRank', { rank: esc(ranked.peak_rating) })}</div>` : ''}
       ${partial}
-      ${rankedShown.length ? `<div class="sub" title="MetaTFT không lưu LP sau mọi trận; trận thiếu dữ liệu không được tính vào LP ròng.">Có dữ liệu LP: ${withLp}/${rankedShown.length} trận xếp hạng</div>` : ''}
+      ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
     </div>
     <div class="tiles">
-      ${tile('Trận', s.games)}
-      ${tile('Hạng TB', num(s.avgPlace))}
-      ${tile('Top 4', pct(s.top4Rate))}
-      ${tile('Top 1', pct(s.winRate))}
-      ${tile('LP ròng', signed(s.lpNet), signCls(s.lpNet))}
-      ${tile('Số đội hình', groups.length)}
+      ${tile(t('tileGames'), s.games)}
+      ${tile(t('tileAvgPlace'), num(s.avgPlace))}
+      ${tile(t('tileTop4'), pct(s.top4Rate))}
+      ${tile(t('tileTop1'), pct(s.winRate))}
+      ${tile(t('tileNetLp'), signed(s.lpNet), signCls(s.lpNet))}
+      ${tile(t('tileNumComps'), groups.length)}
     </div>`;
 }
 
@@ -497,7 +554,7 @@ function renderTable(groups) {
       </tr>`,
         )
         .join('')
-    : `<tr><td colspan="8" class="left muted">Không có trận nào khớp bộ lọc.</td></tr>`;
+    : `<tr><td colspan="8" class="left muted">${t('noCompsMatched')}</td></tr>`;
 }
 
 // ---------- charts ----------
@@ -533,12 +590,11 @@ function renderLpChart(matches, groups) {
   const ranked = matches.filter((m) => m.queue === core.RANKED_QUEUE && m.lpAfter != null);
   const sel = state.selected;
   const selLabel = sel ? groups.find((g) => g.key === sel)?.label : null;
-  $('lp-title').textContent = selLabel ? `Leo rank theo thời gian · ${selLabel}` : 'Leo rank theo thời gian';
+  $('lp-title').textContent = selLabel ? t('lpTitleComp', { name: selLabel }) : t('lpTitle');
   $('lp-hint').textContent = ranked.length
-    ? 'Mỗi chấm là LP sau một trận xếp hạng, tô màu theo đội hình đã chơi. Bấm chấm hoặc chú thích để chọn đội.'
-    : 'Không có dữ liệu LP cho bộ lọc này (chỉ trận Xếp hạng mới có LP).';
+    ? t('lpHint')
+    : t('lpHintEmpty');
 
-  // Legend chips: coloured comps present in this view, plus "Khác".
   const present = groups.filter((g) => state.colors.has(g.key)).sort((a, b) => b.games - a.games);
   const hasOther = groups.some((g) => !state.colors.has(g.key));
   $('lp-legend').innerHTML =
@@ -547,7 +603,7 @@ function renderLpChart(matches, groups) {
         (g) =>
           `<button type="button" data-key="${esc(g.key)}" class="${sel === g.key ? 'active' : sel ? 'faded' : ''}"><span class="dot" style="background:${colorOf(g.key)}"></span>${esc(g.label)} <span class="muted">${g.games}</span></button>`,
       )
-      .join('') + (hasOther ? `<span class="legend-other"><span class="dot" style="background:${OTHER};display:inline-block"></span> Khác</span>` : '');
+      .join('') + (hasOther ? `<span class="legend-other"><span class="dot" style="background:${OTHER};display:inline-block"></span> ${t('legendOther')}</span>` : '');
 
   const pts = ranked.map((m) => ({ x: m.gameNo, y: m.lpAfter, m }));
   const ys = pts.map((p) => p.y);
@@ -587,7 +643,7 @@ function renderLpChart(matches, groups) {
       scales: {
         x: {
           type: 'linear',
-          title: { display: true, text: 'Trận xếp hạng thứ', color: '#8e8d86' },
+          title: { display: true, text: t('lpAxisX'), color: '#8e8d86' },
           ticks: { precision: 0 },
           grid: { display: false },
         },
@@ -605,7 +661,7 @@ function renderLpChart(matches, groups) {
           callbacks: {
             title: (items) => {
               const m = items[0].raw.m;
-              return `Trận #${m.gameNo} · ${fmtDate(m.ts)}`;
+              return t('tooltipMatch', { gameNo: m.gameNo, date: fmtDate(m.ts) });
             },
             label: (item) => {
               const m = item.raw.m;
@@ -614,7 +670,7 @@ function renderLpChart(matches, groups) {
             labelColor: (item) => ({ backgroundColor: colorOf(item.raw.m.compKey), borderColor: colorOf(item.raw.m.compKey) }),
             afterLabel: (item) => {
               const m = item.raw.m;
-              return [`Hạng ${m.placement}`, `${core.ratingToText(m.lpAfter)}${m.lpDelta != null ? ` (${signed(m.lpDelta)} LP)` : ''}`];
+              return [t('tooltipPlace', { place: m.placement }), `${core.ratingToText(m.lpAfter)}${m.lpDelta != null ? ` (${signed(m.lpDelta)} LP)` : ''}`];
             },
           },
         },
@@ -668,12 +724,12 @@ function renderCumChart(groups) {
         x: {
           type: 'linear',
           min: 0,
-          title: { display: true, text: 'Số trận chơi đội này (có LP)', color: '#8e8d86' },
+          title: { display: true, text: t('cumAxisX'), color: '#8e8d86' },
           ticks: { precision: 0 },
           grid: { display: false },
         },
         y: {
-          title: { display: true, text: 'LP cộng dồn', color: '#8e8d86' },
+          title: { display: true, text: t('cumAxisY'), color: '#8e8d86' },
           grid: { color: (c) => (c.tick.value === 0 ? GRID_STRONG : GRID) },
         },
       },
@@ -691,8 +747,8 @@ function renderCumChart(groups) {
             title: (items) => items[0].dataset.label,
             label: (item) => {
               const m = item.raw.m;
-              if (!m) return ' Bắt đầu: 0 LP';
-              return ` Lần ${item.raw.x}: ${signed(item.raw.y)} LP (trận này ${signed(m.lpDelta)}, hạng ${m.placement})`;
+              if (!m) return t('cumStart');
+              return t('cumTooltip', { x: item.raw.x, y: signed(item.raw.y), delta: signed(m.lpDelta), place: m.placement });
             },
           },
         },
@@ -733,7 +789,7 @@ function renderNetChart(groups) {
         if (g) select(g.key);
       },
       scales: {
-        x: { grid: { color: (c) => (c.tick.value === 0 ? GRID_STRONG : GRID) }, title: { display: true, text: 'LP', color: '#8e8d86' } },
+        x: { grid: { color: (c) => (c.tick.value === 0 ? GRID_STRONG : GRID) }, title: { display: true, text: t('netAxisX'), color: '#8e8d86' } },
         y: { grid: { display: false }, ticks: { autoSkip: false } },
       },
       plugins: {
@@ -743,7 +799,7 @@ function renderNetChart(groups) {
           callbacks: {
             label: (item) => {
               const g = rows[item.dataIndex];
-              return ` ${signed(g.lpNet)} LP qua ${g.lpGames} trận (${signed(g.lpPerGame, 1)} LP/trận)`;
+              return t('netTooltip', { net: signed(g.lpNet), games: g.lpGames, perGame: signed(g.lpPerGame, 1) });
             },
           },
         },
@@ -758,8 +814,8 @@ function renderPlaceChart(matches, groups) {
   const counts = [0, 0, 0, 0, 0, 0, 0, 0];
   for (const m of ms) counts[m.placement - 1]++;
   const color = g ? colorOf(g.key) : PALETTE[0];
-  $('place-title').textContent = g ? `Phân bố thứ hạng · ${g.label}` : 'Phân bố thứ hạng';
-  $('place-hint').textContent = `${ms.length} trận`;
+  $('place-title').textContent = g ? t('placeTitleComp', { name: g.label }) : t('placeTitle');
+  $('place-hint').textContent = t('placeHint', { n: ms.length });
 
   draw('place-chart', {
     type: 'bar',
@@ -769,7 +825,7 @@ function renderPlaceChart(matches, groups) {
     },
     options: baseOptions({
       scales: {
-        x: { grid: { display: false }, title: { display: true, text: 'Thứ hạng', color: '#8e8d86' } },
+        x: { grid: { display: false }, title: { display: true, text: t('placeAxisX'), color: '#8e8d86' } },
         y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: GRID } },
       },
       plugins: {
@@ -778,8 +834,8 @@ function renderPlaceChart(matches, groups) {
           ...baseOptions().plugins.tooltip,
           displayColors: false,
           callbacks: {
-            title: (items) => `Hạng ${items[0].label}`,
-            label: (item) => ` ${item.raw} trận (${pct(ms.length ? item.raw / ms.length : 0)})`,
+            title: (items) => t('placeTooltipTitle', { place: items[0].label }),
+            label: (item) => t('placeTooltipLabel', { count: item.raw, pct: pct(ms.length ? item.raw / ms.length : 0) }),
           },
         },
       },
@@ -796,17 +852,17 @@ function renderSummary(matches, groups) {
   const first = ms.length ? Math.min(...ms.map((m) => m.ts)) : null;
   const last = ms.length ? Math.max(...ms.map((m) => m.ts)) : null;
 
-  $('sum-hint').textContent = g ? g.label : 'Tất cả đội hình (theo bộ lọc)';
+  $('sum-hint').textContent = g ? g.label : t('summaryHintAll');
   $('sel-summary').innerHTML = [
-    tile('Trận', s.games),
-    tile('Top 1', pct(s.winRate)),
-    tile('Top 4', pct(s.top4Rate)),
-    tile('Hạng TB', num(s.avgPlace)),
-    tile('LP ròng', signed(s.lpNet), signCls(s.lpNet)),
-    tile('LP/trận', lpGames ? signed(s.lpNet / lpGames, 1) : '—', signCls(lpGames ? s.lpNet : null)),
-    cluster?.metaAvg ? tile('Hạng TB meta (patch này)', num(cluster.metaAvg)) : '',
-    first ? tile('Chơi lần đầu', fmtDate(first)) : '',
-    last ? tile('Gần nhất', fmtDate(last)) : '',
+    tile(t('tileGames'), s.games),
+    tile(t('tileTop1'), pct(s.winRate)),
+    tile(t('tileTop4'), pct(s.top4Rate)),
+    tile(t('tileAvgPlace'), num(s.avgPlace)),
+    tile(t('tileNetLp'), signed(s.lpNet), signCls(s.lpNet)),
+    tile(t('tileLpPerGame'), lpGames ? signed(s.lpNet / lpGames, 1) : '—', signCls(lpGames ? s.lpNet : null)),
+    cluster?.metaAvg ? tile(t('tileMetaAvg'), num(cluster.metaAvg)) : '',
+    first ? tile(t('tileFirstPlayed'), fmtDate(first)) : '',
+    last ? tile(t('tileLastPlayed'), fmtDate(last)) : '',
   ].join('');
 }
 
@@ -835,7 +891,9 @@ function renderMatches(matches) {
   const sel = state.selected;
   const list = matches.filter((m) => !sel || m.compKey === sel).sort((a, b) => b.ts - a.ts);
   const label = sel ? list[0]?.compLabel : null;
-  $('matches-title').textContent = `Lịch sử trận${label ? ` · ${label}` : ''} (${list.length})`;
+  $('matches-title').textContent = sel
+    ? t('matchesTitleComp', { name: label, count: list.length })
+    : t('matchesTitleCount', { count: list.length });
 
   const rows = list.slice(0, state.matchLimit).map((m) => {
     let lp = '<div class="after muted">—</div>';
@@ -843,7 +901,7 @@ function renderMatches(matches) {
       const delta = m.lpDelta != null
         ? `<div class="delta ${signCls(m.lpDelta)}">${signed(m.lpDelta)} LP</div>`
         : m.lpPending
-          ? '<div class="delta muted">chờ cập nhật</div>'
+          ? `<div class="delta muted">${t('lpPending')}</div>`
           : '';
       lp = `${delta}<div class="after">${esc(core.ratingToText(m.lpAfter))}</div>`;
     }
@@ -852,7 +910,7 @@ function renderMatches(matches) {
         <div class="place-badge ${m.placement === 1 ? 'p1' : m.placement <= 4 ? 'top4' : ''}">${m.placement}</div>
         <div class="meta">
           <span class="comp"><span class="dot" style="background:${colorOf(m.compKey)}"></span>${esc(m.compLabel)}</span>
-          <span>${esc(core.QUEUE_NAMES[m.queue] ?? `Queue ${m.queue}`)} · ${esc(m.patch)}${m.gameNo ? ` · #${m.gameNo}` : ''}</span>
+          <span>${esc(core.queueLabel(m.queue, t))} · ${esc(m.patch)}${m.gameNo ? ` · #${m.gameNo}` : ''}</span>
           <span>${fmtDate(m.ts)} · ${fmtDuration(m.duration)} · Lv ${m.level ?? '?'}</span>
         </div>
         <div class="board">${boardHtml(m.units)}</div>
@@ -861,9 +919,9 @@ function renderMatches(matches) {
   });
 
   const more = list.length > state.matchLimit
-    ? `<button type="button" class="ghost more" id="more-matches">Xem thêm (${list.length - state.matchLimit})</button>`
+    ? `<button type="button" class="ghost more" id="more-matches">${t('viewMoreMatches', { count: list.length - state.matchLimit })}</button>`
     : '';
-  $('matches').innerHTML = rows.join('') + more || '<p class="muted">Không có trận nào.</p>';
+  $('matches').innerHTML = rows.join('') + more || `<p class="muted">${t('noMatches')}</p>`;
 }
 
 // ---------- wiring ----------
@@ -873,9 +931,34 @@ function init() {
   Chart.defaults.borderColor = GRID;
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 
+  // Language selector
+  $('lang-select').value = i18n.getLang();
+  $('lang-select').addEventListener('change', async (e) => {
+    const newLang = e.target.value;
+    i18n.setLang(newLang);
+    applyTranslations();
+
+    if (state.set && state.player) {
+      try {
+        const setData = await getLookup(state.set, i18n.getMetaTftLocale());
+        state.lk = core.buildLookups(setData);
+        const comps = await getComps(state.set);
+        const compsSet = comps?.tft_set ?? comps?.results?.data?.tft_set;
+        state.clusters = compsSet === state.set ? core.buildClusters(comps, state.lk) : [];
+        state.all = core.processProfile(state.profile, state.lk, state.set);
+      } catch (err) {
+        console.warn('Reloading localized lookups error:', err);
+      }
+    }
+    renderSeasonOptions();
+    render();
+  });
+
+  applyTranslations();
+
   $('region').innerHTML = core.REGIONS.map((r) => `<option value="${r.slug}">${r.label}</option>`).join('');
   $('group-mode').innerHTML = Object.entries(core.GROUP_MODES)
-    .map(([k, v]) => `<option value="${k}">${esc(v)}</option>`)
+    .map(([k]) => `<option value="${k}">${esc(t(`group${k[0].toUpperCase()}${k.slice(1)}`))}</option>`)
     .join('');
   $('group-mode').value = state.groupMode;
 
@@ -893,11 +976,11 @@ function init() {
     const btn = e.currentTarget;
     try {
       await navigator.clipboard.writeText(location.href);
-      btn.textContent = 'Đã sao chép';
+      btn.textContent = t('linkCopied');
     } catch {
-      btn.textContent = 'Không sao chép được';
+      btn.textContent = t('linkCopyFailed');
     }
-    setTimeout(() => (btn.textContent = 'Sao chép link'), 1500);
+    setTimeout(() => (btn.textContent = t('copyLink')), 1500);
   });
   $('group-mode').addEventListener('change', (e) => {
     state.groupMode = e.target.value;

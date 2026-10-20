@@ -44,8 +44,10 @@ const routes = {
 
   '/api/lookup': (q) => {
     const set = q.get('set') ?? '';
+    const lang = q.get('lang') ?? 'en_us';
     if (!SET_RE.test(set)) return { error: 'set không hợp lệ' };
-    return { url: `https://data.metatft.com/lookups/${set}_latest_en_us.json`, ttl: 6 * 60 * MIN };
+    if (!/^[a-z]{2}_[a-z]{2}$/.test(lang)) return { error: 'lang không hợp lệ' };
+    return { url: `https://data.metatft.com/lookups/${set}_latest_${lang}.json`, ttl: 6 * 60 * MIN };
   },
 
   '/api/comps': (q) => {

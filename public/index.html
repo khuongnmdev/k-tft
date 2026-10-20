@@ -9,13 +9,19 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">k-tft <span>thống kê đội hình</span></div>
+    <div class="brand">k-tft <span data-i18n="brandSub">thống kê đội hình</span></div>
     <form id="search" class="search" autocomplete="off">
       <select id="region" aria-label="Server"></select>
-      <input id="player" type="text" placeholder="Tên#Tag hoặc link MetaTFT" aria-label="Riot ID">
-      <button type="submit">Xem</button>
-      <button type="button" id="refresh" class="ghost" title="Yêu cầu MetaTFT cập nhật trận mới">Cập nhật</button>
+      <input id="player" type="text" placeholder="Tên#Tag hoặc link MetaTFT" aria-label="Riot ID" data-i18n-ph="playerPlaceholder">
+      <button type="submit" data-i18n="viewBtn">Xem</button>
+      <button type="button" id="refresh" class="ghost" title="Yêu cầu MetaTFT cập nhật trận mới" data-i18n="refreshBtn" data-i18n-title="refreshBtnTitle">Cập nhật</button>
     </form>
+    <div class="topbar-right">
+      <select id="lang-select" class="lang-select" aria-label="Ngôn ngữ / Language">
+        <option value="vi">🇻🇳 Tiếng Việt</option>
+        <option value="en">🇬🇧 English</option>
+      </select>
+    </div>
   </header>
 
   <main>
@@ -24,50 +30,50 @@
     <section id="player-card" class="card player-card" hidden></section>
 
     <section id="controls" class="controls" hidden>
-      <label>Mùa
+      <label><span data-i18n="seasonLabel">Mùa</span>
         <select id="season"></select>
       </label>
-      <label>Nhóm theo
+      <label><span data-i18n="groupByLabel">Nhóm theo</span>
         <select id="group-mode"></select>
       </label>
-      <label>Chế độ
+      <label><span data-i18n="modeLabel">Chế độ</span>
         <select id="queue">
-          <option value="1100">Xếp hạng</option>
-          <option value="all">Tất cả</option>
+          <option value="1100" data-i18n="queueRanked">Xếp hạng</option>
+          <option value="all" data-i18n="queueAll">Tất cả</option>
         </select>
       </label>
-      <label>Patch
+      <label><span data-i18n="patchLabel">Patch</span>
         <select id="patch"></select>
       </label>
-      <label>Ẩn đội dưới
+      <label><span data-i18n="minGamesLabel">Ẩn đội dưới</span>
         <select id="min-games">
-          <option value="1">1 trận</option>
-          <option value="2">2 trận</option>
-          <option value="3">3 trận</option>
-          <option value="5">5 trận</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="5">5</option>
         </select>
       </label>
-      <button type="button" id="clear-sel" class="ghost" hidden>Bỏ chọn đội</button>
-      <button type="button" id="copy-link" class="ghost" title="Link giữ nguyên mùa, bộ lọc và đội đang chọn">Sao chép link</button>
+      <button type="button" id="clear-sel" class="ghost" hidden data-i18n="clearSel">Bỏ chọn đội</button>
+      <button type="button" id="copy-link" class="ghost" title="Link giữ nguyên mùa, bộ lọc và đội đang chọn" data-i18n="copyLink" data-i18n-title="copyLinkTitle">Sao chép link</button>
     </section>
 
     <section id="comps-section" class="card" hidden>
       <div class="card-head">
-        <h2>Đội hình đã chơi</h2>
-        <p class="hint" id="comps-hint">Bấm vào một đội để xem chart leo rank và lịch sử trận của đội đó.</p>
+        <h2 data-i18n="compsHeading">Đội hình đã chơi</h2>
+        <p class="hint" id="comps-hint" data-i18n="compsHint">Bấm vào một đội để xem chart leo rank và lịch sử trận của đội đó.</p>
       </div>
       <div class="table-wrap">
         <table id="comps-table">
           <thead>
             <tr>
-              <th data-sort="label" class="left">Đội hình</th>
-              <th data-sort="games">Trận</th>
-              <th data-sort="winRate">Top 1</th>
-              <th data-sort="top4Rate">Top 4</th>
-              <th data-sort="avgPlace">Hạng TB</th>
-              <th data-sort="lpNet">LP ròng</th>
-              <th data-sort="lpPerGame">LP/trận</th>
-              <th class="left">Gần đây</th>
+              <th data-sort="label" class="left" data-i18n="thComp">Đội hình</th>
+              <th data-sort="games" data-i18n="thGames">Trận</th>
+              <th data-sort="winRate" data-i18n="thTop1">Top 1</th>
+              <th data-sort="top4Rate" data-i18n="thTop4">Top 4</th>
+              <th data-sort="avgPlace" data-i18n="thAvgPlace">Hạng TB</th>
+              <th data-sort="lpNet" data-i18n="thLpNet">LP ròng</th>
+              <th data-sort="lpPerGame" data-i18n="thLpPerGame">LP/trận</th>
+              <th class="left" data-i18n="thRecent">Gần đây</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -78,8 +84,8 @@
     <section id="charts" class="charts" hidden>
       <div class="card wide">
         <div class="card-head">
-          <h2 id="lp-title">Leo rank theo thời gian</h2>
-          <p class="hint" id="lp-hint">Mỗi chấm là một trận xếp hạng, tô màu theo đội hình đã chơi.</p>
+          <h2 id="lp-title" data-i18n="lpTitle">Leo rank theo thời gian</h2>
+          <p class="hint" id="lp-hint" data-i18n="lpHint">Mỗi chấm là một trận xếp hạng, tô màu theo đội hình đã chơi.</p>
         </div>
         <div id="lp-legend" class="legend"></div>
         <div class="chart-box tall"><canvas id="lp-chart"></canvas></div>
@@ -87,23 +93,23 @@
 
       <div class="card">
         <div class="card-head">
-          <h2>LP cộng dồn theo đội hình</h2>
-          <p class="hint">Nếu chỉ chơi đội đó thì đã lên/xuống bao nhiêu LP.</p>
+          <h2 data-i18n="cumTitle">LP cộng dồn theo đội hình</h2>
+          <p class="hint" data-i18n="cumHint">Nếu chỉ chơi đội đó thì đã lên/xuống bao nhiêu LP.</p>
         </div>
         <div class="chart-box"><canvas id="cum-chart"></canvas></div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h2>LP ròng theo đội hình</h2>
-          <p class="hint">Đội nào kéo rank lên, đội nào kéo xuống.</p>
+          <h2 data-i18n="netTitle">LP ròng theo đội hình</h2>
+          <p class="hint" data-i18n="netHint">Đội nào kéo rank lên, đội nào kéo xuống.</p>
         </div>
         <div class="chart-box"><canvas id="net-chart"></canvas></div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h2 id="place-title">Phân bố thứ hạng</h2>
+          <h2 id="place-title" data-i18n="placeTitle">Phân bố thứ hạng</h2>
           <p class="hint" id="place-hint"></p>
         </div>
         <div class="chart-box"><canvas id="place-chart"></canvas></div>
@@ -111,7 +117,7 @@
 
       <div class="card">
         <div class="card-head">
-          <h2>Tóm tắt</h2>
+          <h2 data-i18n="summaryTitle">Tóm tắt</h2>
           <p class="hint" id="sum-hint"></p>
         </div>
         <div id="sel-summary" class="tiles"></div>
@@ -120,13 +126,13 @@
 
     <section id="matches-section" class="card" hidden>
       <div class="card-head">
-        <h2 id="matches-title">Lịch sử trận</h2>
+        <h2 id="matches-title" data-i18n="matchesTitle">Lịch sử trận</h2>
       </div>
       <div id="matches"></div>
     </section>
   </main>
 
-  <footer class="foot">Dữ liệu lấy từ MetaTFT (API không chính thức). Đội hình được ghép với các comp meta MetaTFT lưu cho từng mùa.</footer>
+  <footer class="foot" data-i18n="footerText">Dữ liệu lấy từ MetaTFT (API không chính thức). Đội hình được ghép với các comp meta MetaTFT lưu cho từng mùa.</footer>
 
   <script type="module" src="app.js"></script>
 </body>
