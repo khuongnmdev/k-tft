@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 
 export const RANKED_QUEUE = 1100;
 

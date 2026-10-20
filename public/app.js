@@ -1176,32 +1176,27 @@ function setupAutocomplete() {
       return;
     }
 
-    if (trimmed.length < 2) {
+    // Handle user typing "Name#Tag" or "Name#"
+    const hashIdx = trimmed.indexOf('#');
+    const searchName = (hashIdx >= 0 ? trimmed.slice(0, hashIdx) : trimmed).trim();
+    const filterTag = (hashIdx >= 0 ? trimmed.slice(hashIdx + 1) : '').trim().toLowerCase();
+
+    if (searchName.length < 2) {
       renderRecent();
       return;
     }
 
-    const cacheKey = trimmed.toLowerCase();
-    if (searchCache.has(cacheKey)) {
-      renderSearchResults(searchCache.get(cacheKey), trimmed);
-      return;
-    }
+    const cacheKey = searchName.toLowerCase();
+    const curRegionSlug = regionEl.value.toLowerCase();
+    const curRegionApi = core.REGIONS.find((r) => r.slug === curRegionSlug)?.api?.toLowerCase() || '';
 
-    renderLoading();
-
-    try {
-      const res = await api(`/api/search?q=${encodeURIComponent(trimmed)}`);
-      const rawList = Array.isArray(res) ? res : res?.data || res?.results || [];
-
-      const curRegionSlug = regionEl.value.toLowerCase();
-      const curRegionApi = core.REGIONS.find((r) => r.slug === curRegionSlug)?.api?.toLowerCase() || '';
-
+    function processAndRender(rawList) {
       const mapped = rawList
         .map((raw) => {
           const riotId = String(raw.riot_id || raw.name || '');
-          const hashIdx = riotId.lastIndexOf('#');
-          const name = hashIdx > 0 ? riotId.slice(0, hashIdx).trim() : riotId.trim();
-          const tag = hashIdx > 0 ? riotId.slice(hashIdx + 1).trim() : '';
+          const hIdx = riotId.lastIndexOf('#');
+          const name = hIdx > 0 ? riotId.slice(0, hIdx).trim() : riotId.trim();
+          const tag = hIdx > 0 ? riotId.slice(hIdx + 1).trim() : '';
           const rawRegion = String(raw.region || '').toLowerCase();
           const slug = core.regionToSlug(rawRegion);
           return {
@@ -1216,7 +1211,14 @@ function setupAutocomplete() {
         })
         .filter((x) => x.name && x.tag);
 
-      mapped.sort((a, b) => {
+      // If user typed a tag, prioritize or filter matching tag
+      let filtered = mapped;
+      if (filterTag) {
+        const tagMatches = mapped.filter((x) => x.tag.toLowerCase().startsWith(filterTag));
+        if (tagMatches.length) filtered = tagMatches;
+      }
+
+      filtered.sort((a, b) => {
         const aMatches = a.rawRegion === curRegionApi || a.region === curRegionSlug;
         const bMatches = b.rawRegion === curRegionApi || b.region === curRegionSlug;
         if (aMatches && !bMatches) return -1;
@@ -1226,11 +1228,22 @@ function setupAutocomplete() {
         return bScore - aScore;
       });
 
-      const top10 = mapped.slice(0, 10);
-      searchCache.set(cacheKey, top10);
-      if (inputEl.value.trim().toLowerCase() === cacheKey) {
-        renderSearchResults(top10, trimmed);
-      }
+      const top10 = filtered.slice(0, 10);
+      searchCache.set(cacheKey, rawList);
+      renderSearchResults(top10, trimmed);
+    }
+
+    if (searchCache.has(cacheKey)) {
+      processAndRender(searchCache.get(cacheKey));
+      return;
+    }
+
+    renderLoading();
+
+    try {
+      const res = await api(`/api/search?q=${encodeURIComponent(searchName)}`);
+      const rawList = Array.isArray(res) ? res : res?.data || res?.results || [];
+      processAndRender(rawList);
     } catch (err) {
       console.warn('Search error:', err);
       dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchNoResults'))}</div>`;
@@ -1243,10 +1256,8 @@ function setupAutocomplete() {
     const q = inputEl.value;
     if (!q.trim()) {
       renderRecent();
-    } else if (q.trim().length >= 2) {
-      debounceTimer = setTimeout(() => triggerSearch(q), 250);
     } else {
-      renderRecent();
+      debounceTimer = setTimeout(() => triggerSearch(q), 200);
     }
   });
 
@@ -1254,8 +1265,16 @@ function setupAutocomplete() {
     const q = inputEl.value;
     if (!q.trim()) {
       renderRecent();
-    } else if (q.trim().length >= 2) {
+    } else {
       triggerSearch(q);
+    }
+  });
+
+  inputEl.addEventListener('click', () => {
+    if (dropdownEl.hidden) {
+      const q = inputEl.value;
+      if (!q.trim()) renderRecent();
+      else triggerSearch(q);
     }
   });
 
