@@ -219,10 +219,12 @@ async function detectCurrentSet() {
 function getLookup(set, lang = i18n.getMetaTftLocale()) {
   const cacheKey = `${set}_${lang}`;
   if (!lookupCache.has(cacheKey)) {
-    const base = set.replace(/_\d+$/, ''); // Set 9.5 has no lookup of its own; it shares Set 9's
-    const p = api(`/api/lookup?set=${set}&lang=${lang}`).catch((err) =>
-      base !== set ? api(`/api/lookup?set=${base}&lang=${lang}`) : Promise.reject(err),
-    );
+    const base = set.replace(/_\d+$/, '');
+    const fetchWithFallback = (l) =>
+      api(`/api/lookup?set=${set}&lang=${l}`).catch((err) =>
+        base !== set ? api(`/api/lookup?set=${base}&lang=${l}`) : Promise.reject(err),
+      );
+    const p = fetchWithFallback(lang).catch((err) => (lang !== 'en_us' ? fetchWithFallback('en_us') : Promise.reject(err)));
     p.catch(() => lookupCache.delete(cacheKey));
     lookupCache.set(cacheKey, p);
   }
