@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.0.1';
+export const APP_VERSION = '1.1.0';
 
 export const RANKED_QUEUE = 1100;
 
@@ -131,6 +131,23 @@ export function unitInfo(lk, id) {
 
 export function itemInfo(lk, id) {
   return lk.items.get(id) ?? { name: id.replace(/^DA_/, ''), icon: sized(`${CDN}/items/${id.toLowerCase()}.png`, 40) };
+}
+
+export function traitInfo(lk, base) {
+  const t = lk?.traits?.get(base);
+  const rawIcon = t?.icon ?? `${CDN}/traits/${base.toLowerCase()}.png`;
+  return {
+    name: t?.name ?? prettyId(base),
+    icon: rawIcon.includes('/cdn-cgi/image/') ? rawIcon : sized(rawIcon, 32),
+  };
+}
+
+export function formatRound(r) {
+  if (!r) return '';
+  if (r <= 3) return `1-${r}`;
+  const stage = Math.floor((r - 4) / 7) + 2;
+  const round = ((r - 4) % 7) + 1;
+  return `${stage}-${round}`;
 }
 
 function traitName(lk, base) {
@@ -281,6 +298,7 @@ export function processProfile(profile, lk, setName) {
     });
     return {
       id: m.riot_match_id,
+      matchDataUrl: m.match_data_url || (m.riot_match_id ? `https://matches3.metatft.com/${m.riot_match_id}.json` : null),
       ts: m.match_timestamp,
       queue: m.queue_id,
       patch: m.patch ?? '',

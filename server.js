@@ -91,6 +91,15 @@ const routes = {
       ttl: 5 * MIN,
     };
   },
+
+  '/api/match': (q) => {
+    const id = q.get('id') ?? '';
+    if (!id || !/^[A-Za-z0-9_]+$/.test(id)) return { error: 'Match id không hợp lệ' };
+    return {
+      url: `https://matches3.metatft.com/${id}.json`,
+      ttl: 60 * MIN,
+    };
+  },
 };
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {

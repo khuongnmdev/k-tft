@@ -44,6 +44,8 @@ const state = {
 const charts = {};
 const lookupCache = new Map();
 const compsCache = new Map();
+const matchDetailsCache = new Map();
+const expandedMatchIds = new Set();
 
 // ---------- helpers ----------
 
@@ -113,6 +115,10 @@ function toDirectUrl(path) {
   if (u.pathname === '/api/search') {
     const query = u.searchParams.get('q') || '';
     return `https://api.metatft.com/public/search/${encodeURIComponent(query)}`;
+  }
+  if (u.pathname === '/api/match') {
+    const id = u.searchParams.get('id') || '';
+    return `https://matches3.metatft.com/${encodeURIComponent(id)}.json`;
   }
   return path;
 }
@@ -298,6 +304,7 @@ async function load(player, { set = null, fresh = false, retried = false } = {})
     state.all = core.processProfile(profile, state.lk, wanted);
     state.selected = null;
     state.matchLimit = PAGE;
+    expandedMatchIds.clear();
     state.patch = state.pendingPatch ?? 'all';
     state.pendingPatch = null;
 
@@ -989,6 +996,157 @@ function boardHtml(units) {
     .join('');
 }
 
+function renderLobbyHtml(matchData, matchId) {
+  const participants = (matchData?.info?.participants || []).slice().sort((a, b) => a.placement - b.placement);
+  if (!participants.length) {
+    return `<div class="lobby-empty">${t('matchLoadError')}</div>`;
+  }
+
+  const selfName = state.player?.name?.trim().toLowerCase();
+  const selfTag = state.player?.tag?.trim().toLowerCase();
+
+  const rows = participants
+    .map((p) => {
+      const pName = (p.riotIdGameName || '').trim();
+      const pTag = (p.riotIdTagline || '').trim();
+      const isSelf =
+        selfName &&
+        selfTag &&
+        pName.toLowerCase() === selfName &&
+        pTag.toLowerCase() === selfTag;
+
+      const pUnits = (p.units || []).map((u) => {
+        const uInfo = core.unitInfo(state.lk, u.character_id);
+        return {
+          id: u.character_id,
+          name: uInfo.name,
+          cost: uInfo.cost,
+          icon: uInfo.icon,
+          tier: u.tier,
+          items: u.itemNames || [],
+        };
+      });
+
+      const activeTraits = (p.traits || [])
+        .filter((tr) => tr.style > 0)
+        .sort((a, b) => b.style - a.style || b.num_units - a.num_units);
+
+      const traitsHtml = activeTraits
+        .map((tr) => {
+          const trInfo = core.traitInfo(state.lk, tr.name);
+          return `<span class="trait-pill style-${tr.style}" title="${esc(trInfo.name)} (${tr.num_units})">
+            <img src="${esc(trInfo.icon)}" alt="${esc(trInfo.name)}" loading="lazy">
+            <span class="trait-num">${tr.num_units}</span>
+          </span>`;
+        })
+        .join('');
+
+      const roundText = p.last_round ? core.formatRound(p.last_round) : '';
+      const goldText = p.gold_left != null ? t('matchGold', { gold: p.gold_left }) : '';
+      const dmgText = p.total_damage_to_players ? t('matchDamage', { dmg: p.total_damage_to_players }) : '';
+
+      const nameHtml = isSelf
+        ? `<span class="player-name-text">${esc(pName)} <small>#${esc(pTag)}</small></span> <span class="self-badge">${t('matchSelfTag')}</span>`
+        : `<button type="button" class="player-link" data-name="${esc(pName)}" data-tag="${esc(pTag)}" title="${esc(t('matchViewProfile', { name: pName, tag: pTag }))}">${esc(pName)} <small>#${esc(pTag)}</small></button>`;
+
+      return `
+        <div class="lobby-player ${isSelf ? 'is-self' : ''}">
+          <div class="place-badge ${p.placement === 1 ? 'p1' : p.placement <= 4 ? 'top4' : ''}">${p.placement}</div>
+          <div class="player-col">
+            <div class="player-identity">${nameHtml}</div>
+            <div class="player-stats">
+              <span class="stat-lvl">${t('matchLvl', { lvl: p.level ?? '?' })}</span>
+              ${roundText ? `<span class="stat-round">${t('matchRound', { round: roundText })}</span>` : ''}
+              ${goldText ? `<span class="stat-gold">${goldText}</span>` : ''}
+              ${dmgText ? `<span class="stat-dmg">${dmgText}</span>` : ''}
+            </div>
+          </div>
+          <div class="player-traits">${traitsHtml}</div>
+          <div class="board">${boardHtml(pUnits)}</div>
+        </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="lobby-container">
+      <div class="lobby-header">
+        <h4>${t('matchLobbyTitle')}</h4>
+      </div>
+      <div class="lobby-list">${rows}</div>
+    </div>`;
+}
+
+async function toggleMatch(matchId, matchItem) {
+  if (!matchId || !matchItem) return;
+  const panel = matchItem.querySelector('.match-detail-panel');
+  const summary = matchItem.querySelector('.match-summary');
+  if (!panel || !summary) return;
+
+  const isOpen = !panel.hidden;
+  if (isOpen) {
+    expandedMatchIds.delete(matchId);
+    panel.hidden = true;
+    matchItem.classList.remove('open');
+    summary.setAttribute('aria-expanded', 'false');
+    summary.setAttribute('title', t('matchClickToExpand'));
+  } else {
+    expandedMatchIds.add(matchId);
+    panel.hidden = false;
+    matchItem.classList.add('open');
+    summary.setAttribute('aria-expanded', 'true');
+    summary.setAttribute('title', t('matchClickToCollapse'));
+
+    if (matchDetailsCache.has(matchId)) {
+      panel.innerHTML = renderLobbyHtml(matchDetailsCache.get(matchId), matchId);
+    } else {
+      panel.innerHTML = `
+        <div class="lobby-loading">
+          <div class="spinner"></div>
+          <span>${t('matchLoadingDetails')}</span>
+        </div>`;
+      try {
+        const data = await api(`/api/match?id=${encodeURIComponent(matchId)}`);
+        matchDetailsCache.set(matchId, data);
+        if (expandedMatchIds.has(matchId)) {
+          panel.innerHTML = renderLobbyHtml(data, matchId);
+        }
+      } catch (err) {
+        console.warn('Failed to load match details:', err);
+        if (expandedMatchIds.has(matchId)) {
+          panel.innerHTML = `
+            <div class="lobby-error">
+              <span>${t('matchLoadError')}</span>
+              <button type="button" class="btn-retry ghost" data-retry-match-id="${esc(matchId)}">${t('matchRetry')}</button>
+            </div>`;
+        }
+      }
+    }
+  }
+}
+
+async function retryMatch(matchId, matchItem) {
+  if (!matchId || !matchItem) return;
+  const panel = matchItem.querySelector('.match-detail-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="lobby-loading">
+      <div class="spinner"></div>
+      <span>${t('matchLoadingDetails')}</span>
+    </div>`;
+  try {
+    const data = await api(`/api/match?id=${encodeURIComponent(matchId)}`);
+    matchDetailsCache.set(matchId, data);
+    panel.innerHTML = renderLobbyHtml(data, matchId);
+  } catch (err) {
+    console.warn('Retry failed:', err);
+    panel.innerHTML = `
+      <div class="lobby-error">
+        <span>${t('matchLoadError')}</span>
+        <button type="button" class="btn-retry ghost" data-retry-match-id="${esc(matchId)}">${t('matchRetry')}</button>
+      </div>`;
+  }
+}
+
 function renderMatches(matches) {
   const sel = state.selected;
   const list = matches.filter((m) => !sel || m.compKey === sel).sort((a, b) => b.ts - a.ts);
@@ -1007,16 +1165,49 @@ function renderMatches(matches) {
           : '';
       lp = `${delta}<div class="after">${esc(core.ratingToText(m.lpAfter))}</div>`;
     }
+
+    const mId = m.id || '';
+    const isExpanded = !!mId && expandedMatchIds.has(mId);
+    let detailContent = '';
+    if (isExpanded) {
+      if (matchDetailsCache.has(mId)) {
+        detailContent = renderLobbyHtml(matchDetailsCache.get(mId), mId);
+      } else {
+        detailContent = `
+          <div class="lobby-loading">
+            <div class="spinner"></div>
+            <span>${t('matchLoadingDetails')}</span>
+          </div>`;
+      }
+    }
+
+    const titleAttr = mId ? (isExpanded ? t('matchClickToCollapse') : t('matchClickToExpand')) : '';
+    const chevronSvg = mId
+      ? `<span class="match-chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>`
+      : '';
+
     return `
-      <div class="match">
-        <div class="place-badge ${m.placement === 1 ? 'p1' : m.placement <= 4 ? 'top4' : ''}">${m.placement}</div>
-        <div class="meta">
-          <span class="comp"><span class="dot" style="background:${colorOf(m.compKey)}"></span>${esc(m.compLabel)}</span>
-          <span>${esc(core.queueLabel(m.queue, t))} · ${esc(m.patch)}${m.gameNo ? ` · #${m.gameNo}` : ''}</span>
-          <span>${fmtDate(m.ts)} · ${fmtDuration(m.duration)} · Lv ${m.level ?? '?'}</span>
+      <div class="match-item ${isExpanded ? 'open' : ''}" data-match-id="${esc(mId)}">
+        <div class="match-summary ${mId ? 'is-expandable' : ''}" role="${mId ? 'button' : 'group'}" tabindex="${mId ? '0' : '-1'}" aria-expanded="${isExpanded ? 'true' : 'false'}" title="${esc(titleAttr)}">
+          <div class="place-badge ${m.placement === 1 ? 'p1' : m.placement <= 4 ? 'top4' : ''}">${m.placement}</div>
+          <div class="meta">
+            <span class="comp"><span class="dot" style="background:${colorOf(m.compKey)}"></span>${esc(m.compLabel)}</span>
+            <span>${esc(core.queueLabel(m.queue, t))} · ${esc(m.patch)}${m.gameNo ? ` · #${m.gameNo}` : ''}</span>
+            <span>${fmtDate(m.ts)} · ${fmtDuration(m.duration)} · Lv ${m.level ?? '?'}</span>
+          </div>
+          <div class="board">${boardHtml(m.units)}</div>
+          <div class="match-right">
+            <div class="lp">${lp}</div>
+            ${chevronSvg}
+          </div>
         </div>
-        <div class="board">${boardHtml(m.units)}</div>
-        <div class="lp">${lp}</div>
+        <div class="match-detail-panel" ${isExpanded ? '' : 'hidden'}>
+          ${detailContent}
+        </div>
       </div>`;
   });
 
@@ -1535,9 +1726,52 @@ function init() {
     if (key) select(key);
   });
   $('matches').addEventListener('click', (e) => {
-    if (e.target.id !== 'more-matches') return;
-    state.matchLimit += PAGE;
-    renderMatches(filtered());
+    if (e.target.id === 'more-matches') {
+      state.matchLimit += PAGE;
+      renderMatches(filtered());
+      return;
+    }
+
+    const playerLink = e.target.closest('.player-link');
+    if (playerLink) {
+      e.stopPropagation();
+      const name = playerLink.dataset.name;
+      const tag = playerLink.dataset.tag;
+      if (name && tag) {
+        $('player').value = `${name}#${tag}`;
+        load({ region: state.player?.region || 'vn', name, tag });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
+
+    const retryBtn = e.target.closest('.btn-retry');
+    if (retryBtn) {
+      e.stopPropagation();
+      const matchId = retryBtn.dataset.retryMatchId;
+      const matchItem = retryBtn.closest('.match-item');
+      if (matchId && matchItem) retryMatch(matchId, matchItem);
+      return;
+    }
+
+    const summaryEl = e.target.closest('.match-summary');
+    if (summaryEl) {
+      const matchItem = summaryEl.closest('.match-item');
+      const matchId = matchItem?.dataset.matchId;
+      if (matchId) toggleMatch(matchId, matchItem);
+    }
+  });
+
+  $('matches').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const summaryEl = e.target.closest('.match-summary');
+      if (summaryEl && document.activeElement === summaryEl) {
+        e.preventDefault();
+        const matchItem = summaryEl.closest('.match-item');
+        const matchId = matchItem?.dataset.matchId;
+        if (matchId) toggleMatch(matchId, matchItem);
+      }
+    }
   });
 
   // Initial view: URL (shared link) > last search > default.
