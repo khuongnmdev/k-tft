@@ -1,5 +1,5 @@
-import * as core from './core.js?v=1.1.5';
-import * as i18n from './i18n.js?v=1.1.5';
+import * as core from './core.js?v=1.2.0';
+import * as i18n from './i18n.js?v=1.2.0';
 
 const t = i18n.t;
 
@@ -39,6 +39,7 @@ const state = {
   loading: false,
   pendingPatch: null, // from a shared URL, applied by the next load
   pendingTeam: null,
+  activeTab: 'profile', // 'profile' | 'meta'
 };
 
 const charts = {};
@@ -453,6 +454,86 @@ function clearRecentSearches() {
   }
 }
 
+// ---------- Favorites (Pinned Players) ----------
+
+const FAVORITES_KEY = 'k-tft:favorites';
+
+function getFavorites() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavorites(list) {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function isFavorite(player) {
+  if (!player) return false;
+  const key = playerKey(player);
+  return getFavorites().some((p) => playerKey(p) === key);
+}
+
+function toggleFavorite(player) {
+  if (!player) return;
+  let list = getFavorites();
+  const key = playerKey(player);
+  if (list.some((p) => playerKey(p) === key)) {
+    list = list.filter((p) => playerKey(p) !== key);
+  } else {
+    const ranked = state.profile?.ranked;
+    list.push({
+      region: player.region,
+      name: player.name,
+      tag: player.tag,
+      rank: ranked?.rating_text,
+      rankTier: core.getRankTier(ranked?.rating_text, ranked?.rating_numeric),
+    });
+  }
+  saveFavorites(list);
+  renderFavoritesBar();
+  const starBtn = $('btn-favorite');
+  if (starBtn) {
+    const pinned = isFavorite(player);
+    starBtn.classList.toggle('pinned', pinned);
+    starBtn.textContent = pinned ? '★' : '☆';
+    starBtn.title = pinned ? t('favoriteRemove') : t('favoriteAdd');
+  }
+}
+
+function renderFavoritesBar() {
+  const el = $('favorites-bar');
+  if (!el) return;
+  const list = getFavorites();
+  if (!list.length) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `
+    <span class="favorites-label">${t('favoriteTitle')}:</span>
+    <div class="favorites-chips">
+      ${list
+        .map(
+          (fav) => `
+        <div class="fav-chip tier-${fav.rankTier || 'iron'}" data-region="${esc(fav.region)}" data-name="${esc(fav.name)}" data-tag="${esc(fav.tag)}">
+          <span class="fav-chip-name">${esc(fav.name)}<small>#${esc(fav.tag)}</small></span>
+          ${fav.rank ? `<span class="fav-chip-rank">${esc(fav.rank)}</span>` : ''}
+          <button type="button" class="fav-chip-del" title="${t('favoriteRemove')}" data-del-region="${esc(fav.region)}" data-del-name="${esc(fav.name)}" data-del-tag="${esc(fav.tag)}">✕</button>
+        </div>`,
+        )
+        .join('')}
+    </div>`;
+}
+
 function remember(p) {
   const id = `${p.name}#${p.tag}`;
   $('player').value = id;
@@ -504,12 +585,34 @@ function filtered() {
 
 // ---------- render ----------
 
+function switchTab(tab) {
+  state.activeTab = tab;
+  $('tab-profile')?.classList.toggle('active', tab === 'profile');
+  $('tab-meta')?.classList.toggle('active', tab === 'meta');
+
+  const isProfile = tab === 'profile';
+  const hasData = state.all.length > 0;
+
+  $('placement-section').hidden = !isProfile || !hasData;
+  $('controls').hidden = !isProfile || !hasData;
+  $('comps-section').hidden = !isProfile || !hasData;
+  $('charts').hidden = !isProfile || !hasData;
+  $('mastery-section').hidden = !isProfile || !hasData;
+  $('matches-section').hidden = !isProfile || !hasData;
+
+  $('meta-section').hidden = isProfile || !hasData;
+  if (tab === 'meta') {
+    renderMetaTierList(core.aggregate(filtered()));
+  }
+}
+
 function render() {
   applyTranslations();
   const mode = effectiveMode();
   core.classify(state.all, mode, state.clusters, t);
   assignColors();
   renderPatchOptions();
+  renderFavoritesBar();
   const matches = filtered();
   const groups = core.aggregate(matches);
   if (state.pendingTeam) {
@@ -529,10 +632,14 @@ function render() {
         ? t('compsTipFallback', { season, tip })
         : tip;
 
-  for (const id of ['player-card', 'controls', 'comps-section', 'charts', 'matches-section']) $(id).hidden = false;
+  $('player-card').hidden = false;
   renderPlayerCard(matches, groups);
+  renderPlacementDistribution(matches);
   renderTable(groups);
   renderSelectionViews(matches, groups);
+  renderMastery(matches);
+  renderMetaTierList(groups);
+  switchTab(state.activeTab || 'profile');
   syncUrl();
 }
 
@@ -637,27 +744,251 @@ function renderPlayerCard(matches, groups) {
       </div>`
     : '';
 
-  $('player-card').innerHTML = `
-    <div class="player-id">
-      <h1>${esc(name)} <small>#${esc(tag)}</small></h1>
-      <div class="rank tier-${currentTier}">
-        <span class="rank-dot"></span>
-        <span class="rank-name">${esc(ranked.rating_text ?? t('unranked'))}</span>
-      </div>
-      <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${serverRankHtml}</div>
-      ${peakRankHtml}
-      ${titlesHtml}
-      ${partial}
-      ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
-    </div>
-    <div class="tiles">
-      ${tile(t('tileGames'), s.games, 'games', s.games)}
-      ${tile(t('tileAvgPlace'), num(s.avgPlace), 'avgPlace', s.avgPlace)}
-      ${tile(t('tileTop4'), pct(s.top4Rate), 'top4Rate', s.top4Rate)}
-      ${tile(t('tileTop1'), pct(s.winRate), 'winRate', s.winRate)}
-      ${tile(t('tileNetLp'), signed(s.lpNet), 'lpNet', s.lpNet, signCls(s.lpNet))}
-      ${tile(t('tileNumComps'), groups.length, 'numComps', groups.length)}
+  const pinned = isFavorite(state.player);
+  const { streak, last10 } = core.recentFormAndStreak(matches);
+
+  let streakHtml = '';
+  if (streak && streak.count >= 2) {
+    const sKey = streak.type === 'win' ? 'streakWin' : streak.type === 'top4' ? 'streakTop4' : 'streakBot4';
+    streakHtml = `<span class="streak-badge streak-${streak.type}">${t(sKey, { n: streak.count })}</span>`;
+  }
+
+  let formHtml = '';
+  if (last10 && last10.games >= 5) {
+    const fKey = last10.trend === 'hot' ? 'formHot' : last10.trend === 'cold' ? 'formCold' : 'formSteady';
+    formHtml = `<span class="form-pill trend-${last10.trend}" title="${t('formLast10')}">${t(fKey, { avg: last10.avgPlace.toFixed(1) })}</span>`;
+  }
+
+  const actionsHtml = `
+    <div class="player-actions">
+      <button type="button" id="btn-compare-modal" class="action-btn" title="${t('compareModalTitle')}">${t('compareBtn')}</button>
+      <button type="button" id="btn-share-modal" class="action-btn action-btn-share" title="${t('shareModalTitle')}">${t('shareBtn')}</button>
     </div>`;
+
+  $('player-card').innerHTML = `
+    <div class="player-card-main">
+      <div class="player-id">
+        <div class="player-name-row">
+          <button type="button" class="star-btn ${pinned ? 'pinned' : ''}" id="btn-favorite" title="${pinned ? t('favoriteRemove') : t('favoriteAdd')}" aria-label="Favorite">${pinned ? '★' : '☆'}</button>
+          <h1>${esc(name)} <small>#${esc(tag)}</small></h1>
+          ${actionsHtml}
+        </div>
+        <div class="player-rank-row">
+          <div class="rank tier-${currentTier}">
+            <span class="rank-dot"></span>
+            <span class="rank-name">${esc(ranked.rating_text ?? t('unranked'))}</span>
+          </div>
+          ${streakHtml}
+          ${formHtml}
+        </div>
+        <div class="sub">${esc(seasonLabel)} · ${t('rankedGamesCount', { n: ranked.num_games ?? 0 })}${serverRankHtml}</div>
+        ${peakRankHtml}
+        ${titlesHtml}
+        ${partial}
+        ${rankedShown.length ? `<div class="sub" title="${t('lpDataNoticeTitle')}">${t('lpDataNotice', { withLp, total: rankedShown.length })}</div>` : ''}
+      </div>
+      <div class="tiles">
+        ${tile(t('tileGames'), s.games, 'games', s.games)}
+        ${tile(t('tileAvgPlace'), num(s.avgPlace), 'avgPlace', s.avgPlace)}
+        ${tile(t('tileTop4'), pct(s.top4Rate), 'top4Rate', s.top4Rate)}
+        ${tile(t('tileTop1'), pct(s.winRate), 'winRate', s.winRate)}
+        ${tile(t('tileNetLp'), signed(s.lpNet), 'lpNet', s.lpNet, signCls(s.lpNet))}
+        ${tile(t('tileNumComps'), groups.length, 'numComps', groups.length)}
+      </div>
+    </div>`;
+
+  $('btn-favorite')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFavorite(state.player);
+  });
+  $('btn-compare-modal')?.addEventListener('click', () => openCompareModal());
+  $('btn-share-modal')?.addEventListener('click', () => openShareModal());
+}
+
+// ---------- Placement Distribution & Playstyle ----------
+
+function renderPlacementDistribution(matches) {
+  const sec = $('placement-section');
+  if (!sec) return;
+  if (!matches || !matches.length) {
+    sec.hidden = true;
+    return;
+  }
+  sec.hidden = state.activeTab !== 'profile';
+
+  const dist = core.placementDistribution(matches);
+  const pBadge = $('playstyle-badge');
+  if (pBadge) {
+    const psKey = `playstyle${dist.playstyle[0].toUpperCase()}${dist.playstyle.slice(1)}`;
+    const psName = t(psKey);
+    const psDesc = t(`${psKey}Desc`);
+    const icon =
+      dist.playstyle === 'highRoller'
+        ? '🎲'
+        : dist.playstyle === 'champion'
+          ? '👑'
+          : dist.playstyle === 'stabilizer'
+            ? '🛡️'
+            : dist.playstyle === 'consistent'
+              ? '📈'
+              : dist.playstyle === 'fast8th'
+                ? '⚠️'
+                : '⚖️';
+
+    pBadge.innerHTML = `
+      <div class="playstyle-pill playstyle-${dist.playstyle}" title="${esc(psDesc)}">
+        <span class="ps-icon">${icon}</span>
+        <div class="ps-text">
+          <div class="ps-name">${esc(psName)}</div>
+          <div class="ps-sub">${dist.top4}/${dist.total} Top 4 (${pct(dist.total ? dist.top4 / dist.total : 0)})</div>
+        </div>
+      </div>`;
+  }
+
+  const maxCount = Math.max(...dist.counts, 1);
+  const barsEl = $('placement-bars');
+  if (barsEl) {
+    barsEl.innerHTML = dist.counts
+      .map((count, i) => {
+        const place = i + 1;
+        const p = dist.pcts[i];
+        const heightPct = Math.max(Math.round((count / maxCount) * 100), count > 0 ? 14 : 4);
+        const colorClass = place === 1 ? 'place-1' : place <= 4 ? 'place-top4' : place <= 6 ? 'place-mid' : 'place-bot';
+        return `
+          <div class="pbar-col ${colorClass}">
+            <div class="pbar-val">${count > 0 ? count : ''}</div>
+            <div class="pbar-track">
+              <div class="pbar-fill" style="height:${heightPct}%"></div>
+            </div>
+            <div class="pbar-label">#${place}</div>
+            <div class="pbar-pct">${p.toFixed(0)}%</div>
+          </div>`;
+      })
+      .join('');
+  }
+}
+
+// ---------- Champion & Item Mastery ----------
+
+function renderMastery(matches) {
+  const sec = $('mastery-section');
+  if (!sec) return;
+  if (!matches || !matches.length) {
+    sec.hidden = true;
+    return;
+  }
+  sec.hidden = state.activeTab !== 'profile';
+
+  const { champions, items } = core.championAndItemStats(matches, state.lk);
+
+  const champsEl = $('mastery-champions');
+  if (champsEl) {
+    const topChamps = champions.slice(0, 6);
+    champsEl.innerHTML = topChamps.length
+      ? topChamps
+          .map(
+            (c) => `
+          <div class="mastery-item">
+            <div class="mastery-champ-icon c${c.cost}">
+              <img src="${esc(c.icon)}" alt="${esc(c.name)}" loading="lazy">
+              ${c.threeStar > 0 ? `<span class="mastery-3star-badge" title="${t('mastery3Star', { n: c.threeStar })}">3⭐×${c.threeStar}</span>` : ''}
+            </div>
+            <div class="mastery-info">
+              <div class="mastery-name">
+                <span class="champ-name">${esc(c.name)}</span>
+                <span class="mastery-games">${t('masteryGames', { n: c.games })}</span>
+              </div>
+              <div class="mastery-stats">
+                <span>${t('thAvgPlace')}: <strong>${c.avgPlace.toFixed(2)}</strong></span>
+                <span>${t('thTop4')}: <strong>${pct(c.top4Rate)}</strong></span>
+                <span>${t('thTop1')}: <strong>${pct(c.winRate)}</strong></span>
+              </div>
+              ${
+                c.topItems.length
+                  ? `
+                <div class="mastery-champ-items">
+                  ${c.topItems.map((it) => `<img src="${esc(it.icon)}" title="${esc(it.name)} (${it.count}x)" class="mastery-small-item" loading="lazy">`).join('')}
+                </div>`
+                  : ''
+              }
+            </div>
+          </div>`,
+          )
+          .join('')
+      : `<div class="muted">${t('noMatches')}</div>`;
+  }
+
+  const itemsEl = $('mastery-items');
+  if (itemsEl) {
+    const topItems = items.slice(0, 8);
+    itemsEl.innerHTML = topItems.length
+      ? topItems
+          .map(
+            (it) => `
+          <div class="mastery-item">
+            <div class="mastery-item-icon">
+              <img src="${esc(it.icon)}" alt="${esc(it.name)}" loading="lazy">
+            </div>
+            <div class="mastery-info">
+              <div class="mastery-name">
+                <span class="item-name">${esc(it.name)}</span>
+                <span class="mastery-games">${it.count}x</span>
+              </div>
+              <div class="mastery-stats">
+                <span>${t('thAvgPlace')}: <strong>${it.avgPlace.toFixed(2)}</strong></span>
+                <span>${t('thTop4')}: <strong>${pct(it.top4Rate)}</strong></span>
+                <span>${t('thTop1')}: <strong>${pct(it.winRate)}</strong></span>
+              </div>
+            </div>
+          </div>`,
+          )
+          .join('')
+      : `<div class="muted">${t('noMatches')}</div>`;
+  }
+}
+
+// ---------- Meta Tier List Processing & Rendering ----------
+
+function renderMetaTierList(groups) {
+  const list = core.processMetaTierList(state.clusters, groups);
+  const tbody = $('meta-table-body');
+  if (!tbody) return;
+
+  const heading = $('meta-tier-heading');
+  if (heading) heading.textContent = t('metaTierHeading', { season: core.setLabel(state.set) });
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="left muted">${t('noCompsMatched')}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list
+    .map((item) => {
+      const uStats = item.userStats;
+      const diffText = uStats
+        ? uStats.diff >= 0
+          ? `<span class="pos">${t('metaBetter', { diff: uStats.diff.toFixed(2) })}</span>`
+          : `<span class="neg">${t('metaWorse', { diff: uStats.diff.toFixed(2) })}</span>`
+        : '';
+      const userHtml = uStats
+        ? `<div><strong>${t('metaYouPlayed', { games: uStats.games, avg: uStats.avgPlace.toFixed(2) })}</strong> ${diffText}</div>`
+        : `<span class="muted">${t('metaNotPlayed')}</span>`;
+
+      return `
+        <tr data-meta-key="${esc(item.key)}" class="meta-row clickable">
+          <td><span class="meta-tier-pill tier-${item.tier}">${item.tier}</span></td>
+          <td class="left">
+            <div class="comp-cell">
+              <div class="comp-name">${esc(item.label)}</div>
+              <div class="units">${unitsHtml(item.units.map((u) => core.unitInfo(state.lk, u)))}</div>
+            </div>
+          </td>
+          <td><strong>${item.metaAvg?.toFixed(2) ?? '—'}</strong></td>
+          <td>${item.metaCount ? item.metaCount.toLocaleString() : '—'}</td>
+          <td class="left">${userHtml}</td>
+        </tr>`;
+    })
+    .join('');
 }
 
 function unitsHtml(units, size = '') {
@@ -1736,6 +2067,424 @@ function setupLanguageDropdown() {
   return { updateUi };
 }
 
+// ---------- Head-to-Head Compare 1v1 Modal ----------
+
+function setupCompareModal() {
+  const modal = $('compare-modal');
+  const closeBtn = $('compare-close');
+  const form = $('compare-form');
+  const statusEl = $('compare-status');
+  const resultEl = $('compare-result');
+
+  closeBtn?.addEventListener('click', () => modal?.close());
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) modal.close();
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = $('compare-input').value.trim();
+    const opp = core.parsePlayerInput(val, state.player?.region || 'vn');
+    if (!opp) {
+      statusEl.hidden = false;
+      statusEl.textContent = t('invalidInput');
+      return;
+    }
+
+    statusEl.hidden = false;
+    statusEl.textContent = t('loadingPlayer', { season: core.setLabel(state.set) + ' ', name: opp.name, tag: opp.tag });
+    resultEl.hidden = true;
+
+    try {
+      const oppProfile = await api(`/api/profile?${profileQuery(opp)}&set=${state.set}`);
+      const oppMatches = core.processProfile(oppProfile, state.lk, state.set);
+      const p1 = state.player;
+      const s1 = core.summarize(filtered());
+      const s2 = core.summarize(oppMatches.filter((m) => state.queue === 'all' || m.queue === Number(state.queue)));
+
+      const r1 = state.profile?.ranked ?? {};
+      const r2 = oppProfile.ranked ?? {};
+      const tier1 = core.getRankTier(r1.rating_text, r1.rating_numeric);
+      const tier2 = core.getRankTier(r2.rating_text, r2.rating_numeric);
+
+      const numVal1 = r1.rating_numeric ?? 0;
+      const numVal2 = r2.rating_numeric ?? 0;
+
+      const deltaClass = (v1, v2, lowerIsBetter = false) => {
+        if (v1 == null || v2 == null || v1 === v2) return ['', ''];
+        const p1Better = lowerIsBetter ? v1 < v2 : v1 > v2;
+        return p1Better ? ['better', 'worse'] : ['worse', 'better'];
+      };
+
+      const [rankCls1, rankCls2] = deltaClass(numVal1, numVal2);
+      const [winCls1, winCls2] = deltaClass(s1.winRate, s2.winRate);
+      const [top4Cls1, top4Cls2] = deltaClass(s1.top4Rate, s2.top4Rate);
+      const [avgCls1, avgCls2] = deltaClass(s1.avgPlace, s2.avgPlace, true);
+      const [lpCls1, lpCls2] = deltaClass(s1.lpNet, s2.lpNet);
+
+      statusEl.hidden = true;
+      resultEl.hidden = false;
+      resultEl.innerHTML = `
+        <div class="compare-grid">
+          <div class="compare-card p1">
+            <div class="compare-player-header">
+              <h4>${esc(p1.name)} <small>#${esc(p1.tag)}</small></h4>
+              <div class="rank tier-${tier1}">${esc(r1.rating_text ?? t('unranked'))}</div>
+            </div>
+            <div class="compare-stats">
+              <div class="compare-stat-row ${rankCls1}">
+                <span class="cs-label">${t('compareRank')}</span>
+                <span class="cs-val">${esc(r1.rating_text ?? '—')}</span>
+              </div>
+              <div class="compare-stat-row">
+                <span class="cs-label">${t('tileGames')}</span>
+                <span class="cs-val">${s1.games}</span>
+              </div>
+              <div class="compare-stat-row ${avgCls1}">
+                <span class="cs-label">${t('compareAvgPlace')}</span>
+                <span class="cs-val">${s1.avgPlace ? s1.avgPlace.toFixed(2) : '—'}</span>
+              </div>
+              <div class="compare-stat-row ${top4Cls1}">
+                <span class="cs-label">${t('compareTop4Rate')}</span>
+                <span class="cs-val">${pct(s1.top4Rate)}</span>
+              </div>
+              <div class="compare-stat-row ${winCls1}">
+                <span class="cs-label">${t('compareWinRate')}</span>
+                <span class="cs-val">${pct(s1.winRate)}</span>
+              </div>
+              <div class="compare-stat-row ${lpCls1}">
+                <span class="cs-label">${t('compareNetLp')}</span>
+                <span class="cs-val">${signed(s1.lpNet)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="compare-vs">${t('compareVs')}</div>
+
+          <div class="compare-card p2">
+            <div class="compare-player-header">
+              <h4>${esc(opp.name)} <small>#${esc(opp.tag)}</small></h4>
+              <div class="rank tier-${tier2}">${esc(r2.rating_text ?? t('unranked'))}</div>
+            </div>
+            <div class="compare-stats">
+              <div class="compare-stat-row ${rankCls2}">
+                <span class="cs-label">${t('compareRank')}</span>
+                <span class="cs-val">${esc(r2.rating_text ?? '—')}</span>
+              </div>
+              <div class="compare-stat-row">
+                <span class="cs-label">${t('tileGames')}</span>
+                <span class="cs-val">${s2.games}</span>
+              </div>
+              <div class="compare-stat-row ${avgCls2}">
+                <span class="cs-label">${t('compareAvgPlace')}</span>
+                <span class="cs-val">${s2.avgPlace ? s2.avgPlace.toFixed(2) : '—'}</span>
+              </div>
+              <div class="compare-stat-row ${top4Cls2}">
+                <span class="cs-label">${t('compareTop4Rate')}</span>
+                <span class="cs-val">${pct(s2.top4Rate)}</span>
+              </div>
+              <div class="compare-stat-row ${winCls2}">
+                <span class="cs-label">${t('compareWinRate')}</span>
+                <span class="cs-val">${pct(s2.winRate)}</span>
+              </div>
+              <div class="compare-stat-row ${lpCls2}">
+                <span class="cs-label">${t('compareNetLp')}</span>
+                <span class="cs-val">${signed(s2.lpNet)}</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    } catch (err) {
+      statusEl.hidden = false;
+      statusEl.textContent = t('loadError', { msg: err.message || err });
+    }
+  });
+}
+
+function openCompareModal() {
+  const modal = $('compare-modal');
+  if (!modal) return;
+  $('compare-input').value = '';
+  $('compare-status').hidden = true;
+  $('compare-result').hidden = true;
+  modal.showModal();
+}
+
+// ---------- Share Player Card Modal & Canvas Generator ----------
+
+function setupShareModal() {
+  const modal = $('share-modal');
+  $('share-close')?.addEventListener('click', () => modal?.close());
+  $('share-dismiss-btn')?.addEventListener('click', () => modal?.close());
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) modal.close();
+  });
+
+  $('share-download-btn')?.addEventListener('click', () => {
+    const canvas = $('share-canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `k-tft-${state.player?.name || 'player'}-${core.setLabel(state.set)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  $('share-copy-btn')?.addEventListener('click', async () => {
+    const canvas = $('share-canvas');
+    const copyBtn = $('share-copy-btn');
+    if (!canvas) return;
+    try {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        if (copyBtn) {
+          copyBtn.textContent = t('shareCopied');
+          setTimeout(() => (copyBtn.textContent = t('shareCopy')), 2000);
+        }
+      });
+    } catch (err) {
+      console.warn('Clipboard image copy error:', err);
+    }
+  });
+}
+
+function openShareModal() {
+  const modal = $('share-modal');
+  if (!modal) return;
+  modal.showModal();
+  generateShareCanvas();
+}
+
+function generateShareCanvas() {
+  const canvas = $('share-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = 1200;
+  const h = 630;
+  canvas.width = w;
+  canvas.height = h;
+
+  // Background gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, w, h);
+  bgGrad.addColorStop(0, '#10100f');
+  bgGrad.addColorStop(0.5, '#181715');
+  bgGrad.addColorStop(1, '#0e0e0d');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle accent circles/glow
+  const radial = ctx.createRadialGradient(250, 200, 10, 250, 200, 450);
+  radial.addColorStop(0, 'rgba(57, 135, 229, 0.12)');
+  radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = radial;
+  ctx.fillRect(0, 0, w, h);
+
+  const radial2 = ctx.createRadialGradient(950, 400, 10, 950, 400, 450);
+  radial2.addColorStop(0, 'rgba(217, 89, 38, 0.08)');
+  radial2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = radial2;
+  ctx.fillRect(0, 0, w, h);
+
+  // Border frame
+  ctx.strokeStyle = '#2a2a28';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(16, 16, w - 32, h - 32);
+
+  // Brand header
+  ctx.fillStyle = '#3987e5';
+  ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('k-tft', 60, 72);
+
+  ctx.fillStyle = '#8c8a83';
+  ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`· TFT STATS & COMP TRACKER · ${core.setLabel(state.set).toUpperCase()} · v${core.APP_VERSION}`, 120, 71);
+
+  // Player Name & Tag
+  const p = state.player;
+  const profile = state.profile;
+  const name = p?.name ?? 'Player';
+  const tag = p?.tag ?? 'NA';
+
+  ctx.fillStyle = '#f0efec';
+  ctx.font = 'bold 44px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(name, 60, 140);
+  const nameWidth = ctx.measureText(name).width;
+
+  ctx.fillStyle = '#8c8a83';
+  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`#${tag}`, 65 + nameWidth, 140);
+
+  // Rank badge
+  const ranked = profile?.ranked ?? {};
+  const rankText = ranked.rating_text ?? 'Unranked';
+  const tier = core.getRankTier(rankText, ranked.rating_numeric);
+  const tierColors = {
+    challenger: '#ffaa00',
+    grandmaster: '#ff4d4d',
+    master: '#bd4bff',
+    diamond: '#4da6ff',
+    emerald: '#00cc66',
+    platinum: '#00cccc',
+    gold: '#e6ac00',
+    silver: '#a6a6a6',
+    bronze: '#cd7f32',
+    iron: '#737373',
+  };
+  const tierColor = tierColors[tier] || '#a6a6a6';
+
+  ctx.fillStyle = tierColor;
+  ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`◆ ${rankText}`, 60, 185);
+
+  // Server standing
+  const sr = profile?.server_rank;
+  if (sr?.rank) {
+    const topVal = sr.total ? (sr.rank / sr.total) * 100 : null;
+    const topPctText = topVal == null ? '' : `Top ${topVal < 0.1 ? '<0.1' : topVal.toFixed(1)}%`;
+    ctx.fillStyle = '#c3c2b7';
+    ctx.font = '18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`· Hạng #${sr.rank.toLocaleString()} (${topPctText} server)`, 60 + ctx.measureText(`◆ ${rankText}`).width + 20, 185);
+  }
+
+  // Titles / Badges
+  const matches = filtered();
+  const groups = core.aggregate(matches);
+  const titles = core.computePlayerTitles(matches, groups, profile, t);
+  const { streak } = core.recentFormAndStreak(matches);
+
+  let badgeX = 60;
+  if (streak && streak.count >= 2) {
+    const sText = streak.type === 'win' ? `👑 Chuỗi ${streak.count} Top 1` : streak.type === 'top4' ? `🔥 Chuỗi ${streak.count} Top 4` : `🧊 Chuỗi ${streak.count} Bot 4`;
+    ctx.fillStyle = streak.type === 'bot4' ? '#3987e5' : '#d95926';
+    ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(sText, badgeX, 225);
+    badgeX += ctx.measureText(sText).width + 25;
+  }
+  for (const tItem of titles.slice(0, 2)) {
+    ctx.fillStyle = '#ffaa00';
+    ctx.font = '15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const bText = `${tItem.icon} ${tItem.name}`;
+    ctx.fillText(bText, badgeX, 225);
+    badgeX += ctx.measureText(bText).width + 20;
+  }
+
+  // 6 Stat Cards Grid
+  const s = core.summarize(matches);
+  const dist = core.placementDistribution(matches);
+  const playstyleName = t(`playstyle${dist.playstyle[0].toUpperCase()}${dist.playstyle.slice(1)}`);
+
+  const statCards = [
+    { label: t('tileGames'), val: `${s.games}` },
+    { label: t('tileAvgPlace'), val: `${s.avgPlace.toFixed(2)}` },
+    { label: t('tileTop4'), val: `${pct(s.top4Rate)}` },
+    { label: t('tileTop1'), val: `${pct(s.winRate)}` },
+    { label: t('tileNetLp'), val: `${signed(s.lpNet)} LP` },
+    { label: 'Lối chơi / Playstyle', val: playstyleName },
+  ];
+
+  const cardW = 340;
+  const cardH = 90;
+  const startX = 60;
+  const startY = 265;
+  const gapX = 30;
+  const gapY = 20;
+
+  statCards.forEach((card, idx) => {
+    const col = idx % 3;
+    const row = Math.floor(idx / 3);
+    const x = startX + col * (cardW + gapX);
+    const y = startY + row * (cardH + gapY);
+
+    // Card BG
+    ctx.fillStyle = '#1c1b18';
+    ctx.strokeStyle = '#2c2c2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, cardW, cardH, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Card label
+    ctx.fillStyle = '#8c8a83';
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(card.label.toUpperCase(), x + 18, y + 32);
+
+    // Card value
+    ctx.fillStyle = idx === 4 ? (s.lpNet >= 0 ? '#3987e5' : '#e66767') : '#f0efec';
+    ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(card.val, x + 18, y + 68);
+  });
+
+  // Top carry units summary at bottom
+  const { champions } = core.championAndItemStats(matches, state.lk);
+  const top4 = champions.slice(0, 4);
+  if (top4.length) {
+    ctx.fillStyle = '#8c8a83';
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('TOP TƯỚNG GÁNH (MOST PLAYED CARRIES):', 60, 520);
+
+    let champX = 60;
+    top4.forEach((c) => {
+      ctx.fillStyle = '#f0efec';
+      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const cText = `${c.name} (${c.games} trận · Hạng ${c.avgPlace.toFixed(1)}${c.threeStar ? ` · 3⭐x${c.threeStar}` : ''})`;
+      ctx.fillText(cText, champX, 550);
+      champX += ctx.measureText(cText).width + 30;
+    });
+  }
+
+  // Footer URL
+  ctx.fillStyle = '#5c5b57';
+  ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('https://khuongnmdev.github.io/k-tft/', 60, 595);
+  ctx.fillText(new Date().toLocaleDateString(), w - 160, 595);
+}
+
+// ---------- Tabs & Favorites Setup ----------
+
+function setupTabs() {
+  $('tab-profile')?.addEventListener('click', () => switchTab('profile'));
+  $('tab-meta')?.addEventListener('click', () => switchTab('meta'));
+
+  $('meta-table-body')?.addEventListener('click', (e) => {
+    const row = e.target.closest('.meta-row');
+    if (row) {
+      const key = row.dataset.metaKey;
+      if (key) {
+        state.selected = key;
+        switchTab('profile');
+        const matches = filtered();
+        renderSelectionViews(matches, core.aggregate(matches));
+        syncUrl();
+      }
+    }
+  });
+}
+
+function setupFavoritesBar() {
+  $('favorites-bar')?.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('.fav-chip-del');
+    if (delBtn) {
+      e.stopPropagation();
+      const r = delBtn.dataset.delRegion;
+      const n = delBtn.dataset.delName;
+      const tVal = delBtn.dataset.delTag;
+      toggleFavorite({ region: r, name: n, tag: tVal });
+      return;
+    }
+
+    const chip = e.target.closest('.fav-chip');
+    if (chip) {
+      const region = chip.dataset.region;
+      const name = chip.dataset.name;
+      const tag = chip.dataset.tag;
+      $('region').value = region;
+      $('player').value = `${name}#${tag}`;
+      load({ region, name, tag });
+    }
+  });
+}
+
 function init() {
   Chart.defaults.color = TEXT2;
   Chart.defaults.borderColor = GRID;
@@ -1745,6 +2494,12 @@ function init() {
   document.querySelectorAll('.app-version').forEach((el) => {
     el.textContent = `v${core.APP_VERSION}`;
   });
+
+  // Setup tabs & favorites
+  setupTabs();
+  setupFavoritesBar();
+  setupCompareModal();
+  setupShareModal();
 
   // Language dropdown
   const langUi = setupLanguageDropdown();

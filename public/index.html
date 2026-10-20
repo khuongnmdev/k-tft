@@ -58,12 +58,12 @@
   }
   </script>
 
-  <link rel="stylesheet" href="style.css?v=1.1.5">
+  <link rel="stylesheet" href="style.css?v=1.2.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">k-tft <span class="app-version-badge app-version">v1.1.5</span> <span data-i18n="brandSub">thống kê đội hình</span></div>
+    <div class="brand">k-tft <span class="app-version-badge app-version">v1.2.0</span> <span data-i18n="brandSub">thống kê đội hình</span></div>
     <form id="search" class="search" autocomplete="off">
       <select id="region" aria-label="Server"></select>
       <div class="search-input-wrap">
@@ -105,10 +105,25 @@
     </div>
   </header>
 
+  <div id="favorites-bar" class="favorites-bar" hidden></div>
+
+  <nav class="view-tabs" id="view-tabs">
+    <button type="button" class="tab-btn active" id="tab-profile" data-tab="profile" data-i18n="tabProfile">Hồ sơ kỳ thủ</button>
+    <button type="button" class="tab-btn" id="tab-meta" data-tab="meta" data-i18n="tabMeta">Meta Tier List</button>
+  </nav>
+
   <main>
     <div id="status" class="status" hidden></div>
 
     <section id="player-card" class="card player-card" hidden></section>
+
+    <section id="placement-section" class="card placement-section" hidden>
+      <div class="card-head">
+        <h2 data-i18n="placementHeading">Phân bố thứ hạng &amp; Lối chơi</h2>
+        <div id="playstyle-badge" class="playstyle-badge"></div>
+      </div>
+      <div id="placement-bars" class="placement-bars"></div>
+    </section>
 
     <section id="controls" class="controls" hidden>
       <label><span data-i18n="seasonLabel">Mùa</span>
@@ -205,21 +220,93 @@
       </div>
     </section>
 
+    <section id="mastery-section" class="card" hidden>
+      <div class="card-head">
+        <h2 data-i18n="masteryHeading">Tướng gánh &amp; Trang bị trấn phái</h2>
+      </div>
+      <div class="mastery-grid">
+        <div class="mastery-col">
+          <h3 data-i18n="masteryChamps">Tướng chơi nhiều nhất</h3>
+          <div id="mastery-champions" class="mastery-list"></div>
+        </div>
+        <div class="mastery-col">
+          <h3 data-i18n="masteryItems">Trang bị yêu thích</h3>
+          <div id="mastery-items" class="mastery-list"></div>
+        </div>
+      </div>
+    </section>
+
     <section id="matches-section" class="card" hidden>
       <div class="card-head">
         <h2 id="matches-title" data-i18n="matchesTitle">Lịch sử trận</h2>
       </div>
       <div id="matches"></div>
     </section>
+
+    <section id="meta-section" class="card" hidden>
+      <div class="card-head">
+        <h2 id="meta-tier-heading" data-i18n="metaTierHeading">Meta Tier List</h2>
+        <p class="hint" data-i18n="metaTierDesc">Danh sách các đội hình meta mạnh nhất kết hợp với hiệu suất chơi của bạn.</p>
+      </div>
+      <div class="table-wrap">
+        <table id="meta-table">
+          <thead>
+            <tr>
+              <th data-i18n="metaColTier">Tier</th>
+              <th class="left" data-i18n="metaColComp">Đội hình</th>
+              <th data-i18n="metaColAvg">Hạng TB Meta</th>
+              <th data-i18n="metaColMetaCount">Độ phổ biến</th>
+              <th class="left" data-i18n="metaColYourStats">Hiệu suất của bạn</th>
+            </tr>
+          </thead>
+          <tbody id="meta-table-body"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
+
+  <!-- Head-to-Head Compare Modal -->
+  <dialog id="compare-modal" class="modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 data-i18n="compareModalTitle">So sánh kỳ thủ 1v1</h3>
+        <button type="button" class="modal-close" id="compare-close" aria-label="Close">✕</button>
+      </div>
+      <form id="compare-form" class="compare-form">
+        <input type="text" id="compare-input" placeholder="Nhập Riot ID đối thủ (Tên#Tag)..." data-i18n-ph="compareInputPlaceholder" required autocomplete="off">
+        <button type="submit" class="primary-btn" data-i18n="compareSubmit">So sánh</button>
+      </form>
+      <div id="compare-status" class="compare-status" hidden></div>
+      <div id="compare-result" class="compare-result" hidden></div>
+    </div>
+  </dialog>
+
+  <!-- Share Player Card Modal -->
+  <dialog id="share-modal" class="modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-head">
+        <h3 data-i18n="shareModalTitle">Thẻ thông tin kỳ thủ</h3>
+        <button type="button" class="modal-close" id="share-close" aria-label="Close">✕</button>
+      </div>
+      <p class="hint" data-i18n="shareModalDesc">Ảnh thẻ profile chuẩn eSports được tạo tự động để bạn chia sẻ lên Facebook, Discord hoặc gửi cho bạn bè.</p>
+      <div class="share-canvas-wrap">
+        <canvas id="share-canvas" width="1200" height="630"></canvas>
+      </div>
+      <div class="share-actions">
+        <button type="button" id="share-download-btn" class="primary-btn" data-i18n="shareDownload">Tải ảnh PNG</button>
+        <button type="button" id="share-copy-btn" class="ghost" data-i18n="shareCopy">Sao chép ảnh</button>
+        <button type="button" id="share-dismiss-btn" class="ghost" data-i18n="shareClose">Đóng</button>
+      </div>
+    </div>
+  </dialog>
 
   <footer class="foot">
     <div data-i18n="footerText">Dữ liệu lấy từ MetaTFT (API không chính thức). Đội hình được ghép với các comp meta MetaTFT lưu cho từng mùa.</div>
-    <div class="foot-meta">k-tft · <span class="app-version">v1.1.5</span></div>
+    <div class="foot-meta">k-tft · <span class="app-version">v1.2.0</span></div>
   </footer>
 
-  <div class="version-watermark app-version" id="version-watermark" title="Phiên bản k-tft">v1.1.5</div>
+  <div class="version-watermark app-version" id="version-watermark" title="Phiên bản k-tft">v1.2.0</div>
 
-  <script type="module" src="app.js?v=1.1.5"></script>
+  <script type="module" src="app.js?v=1.2.0"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.1.5';
+export const APP_VERSION = '1.2.0';
 
 export const RANKED_QUEUE = 1100;
 
@@ -943,4 +943,195 @@ export function parsePlayerInput(text, regionSlug) {
   const hash = s.lastIndexOf('#');
   if (hash <= 0 || hash === s.length - 1) return null;
   return { region: regionSlug, name: s.slice(0, hash).trim(), tag: s.slice(hash + 1).trim() };
+}
+
+// ---------- Placement Distribution & Playstyle ----------
+
+export function placementDistribution(matches) {
+  const counts = [0, 0, 0, 0, 0, 0, 0, 0];
+  for (const m of matches) {
+    if (m.placement >= 1 && m.placement <= 8) {
+      counts[m.placement - 1]++;
+    }
+  }
+  const total = matches.length;
+  const pcts = counts.map((c) => (total > 0 ? (c / total) * 100 : 0));
+  const top4 = counts[0] + counts[1] + counts[2] + counts[3];
+  const bot4 = total - top4;
+
+  let playstyle = 'balanced';
+  if (total >= 10) {
+    const c1 = counts[0];
+    const c8 = counts[7];
+    if ((c1 + c8) / total >= 0.30) playstyle = 'highRoller';
+    else if ((counts[1] + counts[2] + counts[3]) / total >= 0.46) playstyle = 'stabilizer';
+    else if (c1 / total >= 0.18) playstyle = 'champion';
+    else if (c8 / total >= 0.18) playstyle = 'fast8th';
+    else if (top4 / total >= 0.58) playstyle = 'consistent';
+  }
+
+  return { counts, pcts, total, top4, bot4, playstyle };
+}
+
+// ---------- Recent Form & Active Streaks ----------
+
+export function recentFormAndStreak(matches) {
+  if (!matches || !matches.length) {
+    return { streak: null, last10: null };
+  }
+  const sorted = [...matches].sort((a, b) => b.ts - a.ts);
+
+  let streak = null;
+  const first = sorted[0];
+  if (first) {
+    let type = first.placement === 1 ? 'win' : first.placement <= 4 ? 'top4' : 'bot4';
+    let count = 0;
+    for (const m of sorted) {
+      if (type === 'win' && m.placement === 1) count++;
+      else if (type === 'top4' && m.placement <= 4) count++;
+      else if (type === 'bot4' && m.placement > 4) count++;
+      else break;
+    }
+    streak = { type, count };
+  }
+
+  const last10Matches = sorted.slice(0, 10);
+  const s = summarize(last10Matches);
+  const trend = s.avgPlace <= 3.8 ? 'hot' : s.avgPlace >= 5.0 ? 'cold' : 'steady';
+
+  return { streak, last10: { ...s, trend, matches: last10Matches } };
+}
+
+// ---------- Champion & Item Mastery Stats ----------
+
+export function championAndItemStats(matches, lk) {
+  const champMap = new Map();
+  const itemMap = new Map();
+
+  for (const m of matches) {
+    for (const u of m.units) {
+      if (!u.id) continue;
+      let c = champMap.get(u.id);
+      if (!c) {
+        const info = unitInfo(lk, u.id);
+        c = {
+          id: u.id,
+          name: info.name,
+          cost: info.cost,
+          icon: info.icon,
+          games: 0,
+          placeSum: 0,
+          top4: 0,
+          wins: 0,
+          threeStar: 0,
+          items: new Map(),
+        };
+        champMap.set(u.id, c);
+      }
+      c.games++;
+      c.placeSum += m.placement;
+      if (m.placement <= 4) c.top4++;
+      if (m.placement === 1) c.wins++;
+      if (u.tier === 3) c.threeStar++;
+
+      for (const it of u.items) {
+        if (!it || isComponent(it)) continue;
+        c.items.set(it, (c.items.get(it) ?? 0) + 1);
+
+        let itObj = itemMap.get(it);
+        if (!itObj) {
+          const itInfo = lk?.items?.get(it) ?? { name: prettyId(it), icon: sized(`${CDN}/items/${it.toLowerCase()}.png`, 40) };
+          itObj = {
+            id: it,
+            name: itInfo.name,
+            icon: itInfo.icon,
+            count: 0,
+            placeSum: 0,
+            top4: 0,
+            wins: 0,
+          };
+          itemMap.set(it, itObj);
+        }
+        itObj.count++;
+        itObj.placeSum += m.placement;
+        if (m.placement <= 4) itObj.top4++;
+        if (m.placement === 1) itObj.wins++;
+      }
+    }
+  }
+
+  const champions = [...champMap.values()]
+    .map((c) => {
+      const topItems = [...c.items.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([itName, count]) => {
+          const itInfo = lk?.items?.get(itName) ?? { name: prettyId(itName), icon: sized(`${CDN}/items/${itName.toLowerCase()}.png`, 40) };
+          return { name: itInfo.name, icon: itInfo.icon, count };
+        });
+
+      return {
+        ...c,
+        avgPlace: c.placeSum / c.games,
+        top4Rate: c.top4 / c.games,
+        winRate: c.wins / c.games,
+        topItems,
+      };
+    })
+    .sort((a, b) => b.games - a.games || a.avgPlace - b.avgPlace);
+
+  const items = [...itemMap.values()]
+    .map((it) => ({
+      ...it,
+      avgPlace: it.placeSum / it.count,
+      top4Rate: it.top4 / it.count,
+      winRate: it.wins / it.count,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return { champions, items };
+}
+
+// ---------- Meta Tier List Processing ----------
+
+export function processMetaTierList(clusters, groups) {
+  const userMap = new Map();
+  for (const g of groups ?? []) {
+    userMap.set(g.key, g);
+    userMap.set(g.label, g);
+  }
+
+  const list = (clusters ?? []).map((c) => {
+    const metaAvg = c.metaAvg ?? 4.5;
+    let tier = 'B';
+    if (metaAvg <= 4.18) tier = 'S';
+    else if (metaAvg <= 4.38) tier = 'A';
+
+    const userComp = userMap.get(c.key) ?? userMap.get(c.label);
+    const userStats = userComp
+      ? {
+          games: userComp.games,
+          avgPlace: userComp.avgPlace,
+          top4Rate: userComp.top4Rate,
+          winRate: userComp.winRate,
+          lpNet: userComp.lpNet,
+          diff: metaAvg - userComp.avgPlace,
+        }
+      : null;
+
+    return {
+      clusterId: c.id,
+      key: c.key,
+      label: c.label,
+      tier,
+      metaAvg,
+      metaCount: c.metaCount,
+      units: [...c.units],
+      traits: [...c.traits.entries()],
+      nameParts: c.nameParts,
+      userStats,
+    };
+  });
+
+  return list.sort((a, b) => (a.metaAvg ?? 99) - (b.metaAvg ?? 99) || (b.metaCount ?? 0) - (a.metaCount ?? 0));
 }

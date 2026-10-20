@@ -171,6 +171,86 @@ export const TRANSLATIONS = {
     compFavTag: 'Bài tủ',
     compFavTitle: 'Đội hình được chơi nhiều nhất ({n} trận)',
 
+    // Tabs & Navigation
+    tabProfile: 'Hồ sơ kỳ thủ',
+    tabMeta: 'Meta Tier List',
+
+    // Favorites
+    favoriteAdd: 'Ghim kỳ thủ',
+    favoriteRemove: 'Bỏ ghim',
+    favoriteTitle: 'Kỳ thủ đã ghim',
+
+    // Placement Distribution & Playstyle
+    placementHeading: 'Phân bố thứ hạng & Lối chơi',
+    placement1to4: 'Top 4 (Thắng)',
+    placement5to8: 'Bot 4 (Thua)',
+    playstyleBalanced: 'Cân bằng & Toàn diện',
+    playstyleBalancedDesc: 'Tỉ lệ vào các thứ hạng đồng đều, xử lý tốt nhiều tình huống.',
+    playstyleHighRoller: 'Liều ăn nhiều (Fast 8 / High Roll)',
+    playstyleHighRollerDesc: 'Tập trung nhiều ở Top 1 hoặc Top 8. Chấp nhận rủi ro để giành chức vô địch.',
+    playstyleStabilizer: 'Giữ máu chắc tay (Mid-game Stabilizer)',
+    playstyleStabilizerDesc: 'Đa số về đích ở Top 2–4. Lối đánh an toàn, tối ưu bảo toàn LP.',
+    playstyleChampion: 'Nhà Vô Địch (Win Dominator)',
+    playstyleChampionDesc: 'Tỉ lệ Top 1 vượt trội, khả năng snowball ván đấu cực mạnh.',
+    playstyleFast8th: 'Kỳ Thủ Cóng Tay (Tilt Alert)',
+    playstyleFast8thDesc: 'Tỉ lệ Top 8 cao, cần chú ý def máu và xoay bài giữa trận.',
+    playstyleConsistent: 'Chiến Thần Leo Rank (Steady Climber)',
+    playstyleConsistentDesc: 'Tỉ lệ Top 4 trên 58%, phong độ ổn định và tích lũy điểm đều đặn.',
+
+    // Recent Form & Streaks
+    streakWin: '👑 Chuỗi {n} trận Top 1',
+    streakTop4: '🔥 Chuỗi {n} trận Top 4',
+    streakBot4: '🧊 Chuỗi {n} trận Bot 4',
+    formLast10: 'Phong độ 10 trận gần nhất',
+    formHot: 'Rực sáng (Hạng TB {avg})',
+    formCold: 'Chững lại (Hạng TB {avg})',
+    formSteady: 'Ổn định (Hạng TB {avg})',
+
+    // Mastery (Champions & Items)
+    masteryHeading: 'Tướng gánh & Trang bị trấn phái',
+    masteryChamps: 'Tướng chơi nhiều nhất',
+    masteryItems: 'Trang bị yêu thích',
+    mastery3Star: '{n} lần 3⭐',
+    masteryGames: '{n} trận',
+    masteryTopItems: 'Trang bị thường dùng',
+
+    // Meta Tier List
+    metaTierHeading: 'Meta Tier List · {season}',
+    metaTierDesc: 'Danh sách các đội hình meta mạnh nhất kết hợp với hiệu suất chơi của bạn.',
+    metaColComp: 'Đội hình',
+    metaColTier: 'Tier',
+    metaColAvg: 'Hạng TB Meta',
+    metaColMetaCount: 'Độ phổ biến',
+    metaColYourStats: 'Hiệu suất của bạn',
+    metaYouPlayed: '{games} trận · Hạng {avg}',
+    metaNotPlayed: 'Chưa chơi đội này',
+    metaBetter: '(+{diff} tốt hơn meta)',
+    metaWorse: '({diff} so với meta)',
+
+    // Compare 1v1
+    compareBtn: '⚔️ So sánh 1v1',
+    compareModalTitle: 'So sánh kỳ thủ 1v1',
+    compareInputPlaceholder: 'Nhập Riot ID đối thủ (Tên#Tag)...',
+    compareSubmit: 'So sánh',
+    compareVs: 'VS',
+    comparePlayer1: 'Kỳ thủ 1',
+    comparePlayer2: 'Kỳ thủ 2',
+    compareRank: 'Bậc xếp hạng',
+    compareWinRate: 'Tỉ lệ Top 1',
+    compareTop4Rate: 'Tỉ lệ Top 4',
+    compareAvgPlace: 'Hạng trung bình',
+    compareNetLp: 'LP ròng',
+    compareFavoriteComp: 'Bài tủ',
+
+    // Share Card
+    shareBtn: '📸 Chia sẻ thẻ',
+    shareModalTitle: 'Thẻ thông tin kỳ thủ',
+    shareModalDesc: 'Ảnh thẻ profile chuẩn eSports được tạo tự động để bạn chia sẻ lên Facebook, Discord hoặc gửi cho bạn bè.',
+    shareDownload: 'Tải ảnh PNG',
+    shareCopy: 'Sao chép ảnh',
+    shareCopied: 'Đã sao chép ảnh vào clipboard!',
+    shareClose: 'Đóng',
+
     // Statuses
     loadingPlayer: 'Đang tải {season}của {name}#{tag}…',
     requestingRefresh: 'Đang yêu cầu MetaTFT cập nhật {name}#{tag}…',
@@ -364,6 +444,86 @@ export const TRANSLATIONS = {
     titleDescServerGrandmaster: 'Top {top}% on the server',
     compFavTag: 'Favorite',
     compFavTitle: 'Most played composition ({n} matches)',
+
+    // Tabs & Navigation
+    tabProfile: 'Player Profile',
+    tabMeta: 'Meta Tier List',
+
+    // Favorites
+    favoriteAdd: 'Pin Player',
+    favoriteRemove: 'Unpin Player',
+    favoriteTitle: 'Pinned Players',
+
+    // Placement Distribution & Playstyle
+    placementHeading: 'Placement Distribution & Playstyle',
+    placement1to4: 'Top 4 (Win)',
+    placement5to8: 'Bot 4 (Loss)',
+    playstyleBalanced: 'Balanced & Adaptable',
+    playstyleBalancedDesc: 'Even placement distribution across all tiers, capable of handling diverse game states.',
+    playstyleHighRoller: 'High Roller (Fast 8 / High Roll)',
+    playstyleHighRollerDesc: 'Heavy concentration in 1st or 8th. High risk, high reward playstyle playing for 1st.',
+    playstyleStabilizer: 'Safe Stabilizer (Mid-game Control)',
+    playstyleStabilizerDesc: 'Majority of finishes in 2nd–4th. Safe, disciplined climb prioritising LP conservation.',
+    playstyleChampion: 'Apex Champion (Win Dominator)',
+    playstyleChampionDesc: 'Outstanding 1st place rate, excels at snowballing tempo into victory.',
+    playstyleFast8th: 'Tilt Alert (Unstable Finishes)',
+    playstyleFast8thDesc: 'High 8th place rate; needs safer mid-game transitions and earlier stabilization.',
+    playstyleConsistent: 'Consistent Climber (Steady Grind)',
+    playstyleConsistentDesc: 'Over 58% Top 4 rate, rock-solid consistency and reliable LP accumulation.',
+
+    // Recent Form & Streaks
+    streakWin: '👑 {n} Game Win Streak',
+    streakTop4: '🔥 {n} Game Top 4 Streak',
+    streakBot4: '🧊 {n} Game Cold Streak',
+    formLast10: 'Last 10 Games Form',
+    formHot: 'On Fire (Avg {avg})',
+    formCold: 'Cold Streak (Avg {avg})',
+    formSteady: 'Steady (Avg {avg})',
+
+    // Mastery (Champions & Items)
+    masteryHeading: 'Carry Mastery & Core Items',
+    masteryChamps: 'Top Played Champions',
+    masteryItems: 'Favorite Items',
+    mastery3Star: '{n} times 3⭐',
+    masteryGames: '{n} games',
+    masteryTopItems: 'Frequent Items',
+
+    // Meta Tier List
+    metaTierHeading: 'Meta Tier List · {season}',
+    metaTierDesc: 'Top meta compositions ranked by MetaTFT server statistics combined with your performance.',
+    metaColComp: 'Composition',
+    metaColTier: 'Tier',
+    metaColAvg: 'Meta Avg',
+    metaColMetaCount: 'Pick Rate',
+    metaColYourStats: 'Your Performance',
+    metaYouPlayed: '{games} games · Avg {avg}',
+    metaNotPlayed: 'Not played yet',
+    metaBetter: '(+{diff} better than meta)',
+    metaWorse: '({diff} vs meta)',
+
+    // Compare 1v1
+    compareBtn: '⚔️ Compare 1v1',
+    compareModalTitle: 'Head-to-Head Compare 1v1',
+    compareInputPlaceholder: 'Opponent Riot ID (Name#Tag)...',
+    compareSubmit: 'Compare',
+    compareVs: 'VS',
+    comparePlayer1: 'Player 1',
+    comparePlayer2: 'Player 2',
+    compareRank: 'Rank',
+    compareWinRate: 'Top 1 Rate',
+    compareTop4Rate: 'Top 4 Rate',
+    compareAvgPlace: 'Average Place',
+    compareNetLp: 'Net LP',
+    compareFavoriteComp: 'Favorite Comp',
+
+    // Share Card
+    shareBtn: '📸 Share Card',
+    shareModalTitle: 'Player Card Showcase',
+    shareModalDesc: 'Auto-generated eSports-grade profile banner ready to share on Discord, Facebook or with friends.',
+    shareDownload: 'Download PNG',
+    shareCopy: 'Copy Image',
+    shareCopied: 'Image copied to clipboard!',
+    shareClose: 'Close',
 
     // Statuses
     loadingPlayer: 'Loading {season}for {name}#{tag}…',

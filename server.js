@@ -66,7 +66,7 @@ const routes = {
     const name = q.get('name') ?? '';
     const tag = q.get('tag') ?? '';
     const set = q.get('set') ?? '';
-    if (!/^[A-Z0-9]+$/.test(region) || !name || !tag) return { error: 'Thiếu region / tên / tag' };
+    if (!/^[a-zA-Z0-9]+$/.test(region) || !name || !tag) return { error: 'Thiếu region / tên / tag' };
     let url = `https://api.metatft.com/public/profile/lookup_by_riotid/${region}/${enc(name)}/${enc(tag)}?source=full_profile`;
     if (SET_RE.test(set)) url += `&tft_set=${set}`;
     return { url, ttl: q.get('fresh') ? 0 : 2 * MIN };
@@ -76,7 +76,7 @@ const routes = {
     const region = q.get('region') ?? '';
     const name = q.get('name') ?? '';
     const tag = q.get('tag') ?? '';
-    if (!/^[A-Z0-9]+$/.test(region) || !name || !tag) return { error: 'Thiếu region / tên / tag' };
+    if (!/^[a-zA-Z0-9]+$/.test(region) || !name || !tag) return { error: 'Thiếu region / tên / tag' };
     return {
       url: `https://api.metatft.com/public/profile/refresh_by_riotid/${region}/${enc(name)}/${enc(tag)}?source=full_profile`,
       ttl: 0,
