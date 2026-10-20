@@ -1,6 +1,6 @@
 // Pure data logic (no DOM) — shared by the browser app and the Node self-check.
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.1.1';
 
 export const RANKED_QUEUE = 1100;
 
@@ -111,31 +111,35 @@ export function buildLookups(setData) {
 
 // Readable fallback for ids the lookup doesn't know: "TFT9_TwistedFate" -> "Twisted Fate".
 function prettyId(id) {
-  const s = id
+  if (!id) return '';
+  const s = String(id)
     .replace(/^(DA_|TFT\d*[a-z]?_|Set\d+[a-z]?_)/i, '')
     .replace(/(^|_)18(_|$)|_?(AD|AP)$/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/_/g, ' ')
     .trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
 
 export function unitInfo(lk, id) {
-  return lk.units.get(id) ?? lk.unitsLower.get(id.toLowerCase()) ?? {
+  if (!id) return { apiName: '', name: '', cost: 0, icon: '' };
+  return lk?.units?.get(id) ?? lk?.unitsLower?.get(String(id).toLowerCase()) ?? {
     apiName: id,
     name: prettyId(id),
     cost: 0,
-    icon: sized(`${CDN}/champions/${id.toLowerCase()}.png`, 64),
+    icon: sized(`${CDN}/champions/${String(id).toLowerCase()}.png`, 64),
   };
 }
 
 export function itemInfo(lk, id) {
-  return lk.items.get(id) ?? { name: id.replace(/^DA_/, ''), icon: sized(`${CDN}/items/${id.toLowerCase()}.png`, 40) };
+  if (!id) return { name: '', icon: '' };
+  return lk?.items?.get(id) ?? { name: String(id).replace(/^DA_/, ''), icon: sized(`${CDN}/items/${String(id).toLowerCase()}.png`, 40) };
 }
 
 export function traitInfo(lk, base) {
+  if (!base) return { name: '', icon: '' };
   const t = lk?.traits?.get(base);
-  const rawIcon = t?.icon ?? `${CDN}/traits/${base.toLowerCase()}.png`;
+  const rawIcon = t?.icon ?? `${CDN}/traits/${String(base).toLowerCase()}.png`;
   return {
     name: t?.name ?? prettyId(base),
     icon: rawIcon.includes('/cdn-cgi/image/') ? rawIcon : sized(rawIcon, 32),
@@ -143,10 +147,11 @@ export function traitInfo(lk, base) {
 }
 
 export function formatRound(r) {
-  if (!r) return '';
-  if (r <= 3) return `1-${r}`;
-  const stage = Math.floor((r - 4) / 7) + 2;
-  const round = ((r - 4) % 7) + 1;
+  if (r == null || isNaN(r)) return '';
+  const n = Number(r);
+  if (n <= 3) return `1-${n}`;
+  const stage = Math.floor((n - 4) / 7) + 2;
+  const round = ((n - 4) % 7) + 1;
   return `${stage}-${round}`;
 }
 

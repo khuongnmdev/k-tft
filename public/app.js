@@ -1,5 +1,5 @@
-import * as core from './core.js';
-import * as i18n from './i18n.js';
+import * as core from './core.js?v=1.1.1';
+import * as i18n from './i18n.js?v=1.1.1';
 
 const t = i18n.t;
 
@@ -996,8 +996,40 @@ function boardHtml(units) {
     .join('');
 }
 
+async function fetchMatchData(matchId) {
+  if (matchDetailsCache.has(matchId)) return matchDetailsCache.get(matchId);
+  const matchObj = state.all.find((m) => m.id === matchId);
+  const candidateUrls = [];
+  if (matchObj?.matchDataUrl) candidateUrls.push(matchObj.matchDataUrl);
+  candidateUrls.push(`https://matches3.metatft.com/${encodeURIComponent(matchId)}.json`);
+
+  let lastErr = null;
+  // Try direct CDN URLs first (CORS allowed on matches3.metatft.com)
+  for (const url of candidateUrls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        matchDetailsCache.set(matchId, json);
+        return json;
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  // Fallback to local / server proxy api if direct fetch fails (e.g. adblock blocking metatft.com)
+  try {
+    const json = await api(`/api/match?id=${encodeURIComponent(matchId)}`);
+    matchDetailsCache.set(matchId, json);
+    return json;
+  } catch (apiErr) {
+    throw lastErr || apiErr;
+  }
+}
+
 function renderLobbyHtml(matchData, matchId) {
-  const participants = (matchData?.info?.participants || []).slice().sort((a, b) => a.placement - b.placement);
+  const participants = (matchData?.info?.participants || []).slice().sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99));
   if (!participants.length) {
     return `<div class="lobby-empty">${t('matchLoadError')}</div>`;
   }
@@ -1016,32 +1048,35 @@ function renderLobbyHtml(matchData, matchId) {
         pTag.toLowerCase() === selfTag;
 
       const pUnits = (p.units || []).map((u) => {
-        const uInfo = core.unitInfo(state.lk, u.character_id);
+        const uInfo = core.unitInfo ? core.unitInfo(state.lk, u.character_id) : null;
         return {
-          id: u.character_id,
-          name: uInfo.name,
-          cost: uInfo.cost,
-          icon: uInfo.icon,
-          tier: u.tier,
-          items: u.itemNames || [],
+          id: u.character_id || '',
+          name: uInfo?.name || u.character_id || '',
+          cost: uInfo?.cost ?? 0,
+          icon: uInfo?.icon || '',
+          tier: u.tier || 1,
+          items: Array.isArray(u.itemNames) ? u.itemNames : [],
         };
       });
 
       const activeTraits = (p.traits || [])
-        .filter((tr) => tr.style > 0)
-        .sort((a, b) => b.style - a.style || b.num_units - a.num_units);
+        .filter((tr) => (tr.style ?? 0) > 0)
+        .sort((a, b) => (b.style ?? 0) - (a.style ?? 0) || (b.num_units ?? 0) - (a.num_units ?? 0));
 
       const traitsHtml = activeTraits
         .map((tr) => {
-          const trInfo = core.traitInfo(state.lk, tr.name);
-          return `<span class="trait-pill style-${tr.style}" title="${esc(trInfo.name)} (${tr.num_units})">
+          const trInfo = (core.traitInfo ? core.traitInfo(state.lk, tr.name) : null) || {
+            name: tr.name,
+            icon: `https://cdn.metatft.com/file/metatft/traits/${(tr.name || '').toLowerCase()}.png`,
+          };
+          return `<span class="trait-pill style-${tr.style ?? 1}" title="${esc(trInfo.name)} (${tr.num_units ?? 1})">
             <img src="${esc(trInfo.icon)}" alt="${esc(trInfo.name)}" loading="lazy">
-            <span class="trait-num">${tr.num_units}</span>
+            <span class="trait-num">${tr.num_units ?? 1}</span>
           </span>`;
         })
         .join('');
 
-      const roundText = p.last_round ? core.formatRound(p.last_round) : '';
+      const roundText = p.last_round ? (core.formatRound ? core.formatRound(p.last_round) : `R${p.last_round}`) : '';
       const goldText = p.gold_left != null ? t('matchGold', { gold: p.gold_left }) : '';
       const dmgText = p.total_damage_to_players ? t('matchDamage', { dmg: p.total_damage_to_players }) : '';
 
@@ -1049,9 +1084,10 @@ function renderLobbyHtml(matchData, matchId) {
         ? `<span class="player-name-text">${esc(pName)} <small>#${esc(pTag)}</small></span> <span class="self-badge">${t('matchSelfTag')}</span>`
         : `<button type="button" class="player-link" data-name="${esc(pName)}" data-tag="${esc(pTag)}" title="${esc(t('matchViewProfile', { name: pName, tag: pTag }))}">${esc(pName)} <small>#${esc(pTag)}</small></button>`;
 
+      const place = p.placement ?? '?';
       return `
         <div class="lobby-player ${isSelf ? 'is-self' : ''}">
-          <div class="place-badge ${p.placement === 1 ? 'p1' : p.placement <= 4 ? 'top4' : ''}">${p.placement}</div>
+          <div class="place-badge ${place === 1 ? 'p1' : place <= 4 ? 'top4' : ''}">${place}</div>
           <div class="player-col">
             <div class="player-identity">${nameHtml}</div>
             <div class="player-stats">
@@ -1097,7 +1133,12 @@ async function toggleMatch(matchId, matchItem) {
     summary.setAttribute('title', t('matchClickToCollapse'));
 
     if (matchDetailsCache.has(matchId)) {
-      panel.innerHTML = renderLobbyHtml(matchDetailsCache.get(matchId), matchId);
+      try {
+        panel.innerHTML = renderLobbyHtml(matchDetailsCache.get(matchId), matchId);
+      } catch (renderErr) {
+        console.error('Render lobby error:', renderErr);
+        panel.innerHTML = `<div class="lobby-error"><span>${t('matchLoadError')}</span></div>`;
+      }
     } else {
       panel.innerHTML = `
         <div class="lobby-loading">
@@ -1105,13 +1146,12 @@ async function toggleMatch(matchId, matchItem) {
           <span>${t('matchLoadingDetails')}</span>
         </div>`;
       try {
-        const data = await api(`/api/match?id=${encodeURIComponent(matchId)}`);
-        matchDetailsCache.set(matchId, data);
+        const data = await fetchMatchData(matchId);
         if (expandedMatchIds.has(matchId)) {
           panel.innerHTML = renderLobbyHtml(data, matchId);
         }
       } catch (err) {
-        console.warn('Failed to load match details:', err);
+        console.error('Failed to load match details:', err);
         if (expandedMatchIds.has(matchId)) {
           panel.innerHTML = `
             <div class="lobby-error">
@@ -1134,11 +1174,10 @@ async function retryMatch(matchId, matchItem) {
       <span>${t('matchLoadingDetails')}</span>
     </div>`;
   try {
-    const data = await api(`/api/match?id=${encodeURIComponent(matchId)}`);
-    matchDetailsCache.set(matchId, data);
+    const data = await fetchMatchData(matchId);
     panel.innerHTML = renderLobbyHtml(data, matchId);
   } catch (err) {
-    console.warn('Retry failed:', err);
+    console.error('Retry failed:', err);
     panel.innerHTML = `
       <div class="lobby-error">
         <span>${t('matchLoadError')}</span>
