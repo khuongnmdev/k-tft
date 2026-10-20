@@ -159,10 +159,37 @@ const playerKey = (p) => `${p.region}|${p.name}#${p.tag}`.toLowerCase();
 // MetaTFT keeps comp clusters only for recent sets; older ones fall back to trait + carry.
 const effectiveMode = () => (state.groupMode === 'cluster' && !state.clusters.length ? 'traitCarry' : state.groupMode);
 
-// ---------- i18n DOM updates ----------
+// ---------- SEO & i18n DOM updates ----------
+
+function updateMetaTags() {
+  const p = state.player;
+  const season = core.setLabel(state.set);
+  const title = p ? t('playerMetaTitle', { name: p.name, tag: p.tag }) : t('metaTitle');
+  const desc = p ? t('playerMetaDesc', { name: p.name, tag: p.tag, season: season ? `(${season})` : '' }) : t('metaDesc');
+
+  document.title = title;
+
+  const descMeta = document.querySelector('meta[name="description"]');
+  if (descMeta) descMeta.content = desc;
+
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle) ogTitle.content = title;
+
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  if (ogDesc) ogDesc.content = desc;
+
+  const twitterTitle = document.querySelector('meta[name="twitter:title"]');
+  if (twitterTitle) twitterTitle.content = title;
+
+  const twitterDesc = document.querySelector('meta[name="twitter:description"]');
+  if (twitterDesc) twitterDesc.content = desc;
+
+  const ogLocale = document.querySelector('meta[property="og:locale"]');
+  if (ogLocale) ogLocale.content = i18n.getLang() === 'vi' ? 'vi_VN' : 'en_US';
+}
 
 function applyTranslations() {
-  document.title = t('appTitle');
+  updateMetaTags();
   document.documentElement.lang = i18n.getLang();
   $('lang-select').value = i18n.getLang();
 
@@ -358,7 +385,7 @@ function remember(p) {
   const id = `${p.name}#${p.tag}`;
   $('player').value = id;
   $('region').value = p.region;
-  document.title = `${id} · k-tft`;
+  updateMetaTags();
   try {
     localStorage.setItem('k-tft:last', JSON.stringify({ region: p.region, id }));
   } catch {

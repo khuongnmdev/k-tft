@@ -6,7 +6,11 @@ export const DEFAULT_LANG = 'vi';
 
 export const TRANSLATIONS = {
   vi: {
-    appTitle: 'k-tft · Thống kê đội hình',
+    appTitle: 'k-tft · Thống kê đội hình & Leo rank TFT',
+    metaTitle: 'k-tft · Thống kê đội hình & Leo rank TFT',
+    metaDesc: 'Tra cứu lịch sử trận, tỉ lệ thắng (Top 1), tỉ lệ Top 4, điểm LP ròng và biểu đồ leo rank theo từng đội hình TFT (Đấu Trường Chân Lý) dựa trên dữ liệu MetaTFT & Riot Games.',
+    playerMetaTitle: '{name}#{tag} · Thống kê đội hình & Leo rank TFT | k-tft',
+    playerMetaDesc: 'Thống kê chi tiết đội hình, tỉ lệ thắng, Top 4 và lịch sử leo rank TFT của {name}#{tag} ({season}).',
     brandSub: 'thống kê đội hình',
     playerPlaceholder: 'Tên#Tag hoặc link MetaTFT',
     viewBtn: 'Xem',
@@ -131,7 +135,11 @@ export const TRANSLATIONS = {
   },
 
   en: {
-    appTitle: 'k-tft · TFT Comp Stats',
+    appTitle: 'k-tft · TFT Comp Stats & Rank Climber',
+    metaTitle: 'k-tft · TFT Comp Stats & Rank Progression Tracker',
+    metaDesc: 'Track TFT win rates, Top 4 rates, net LP gains, and rank climbing charts by team composition using MetaTFT & Riot Games data.',
+    playerMetaTitle: '{name}#{tag} · TFT Comp Stats & Rank Progression | k-tft',
+    playerMetaDesc: 'Detailed TFT stats, comp win rates, Top 4 rates, and rank progression chart for {name}#{tag} ({season}).',
     brandSub: 'comp statistics',
     playerPlaceholder: 'Name#Tag or MetaTFT link',
     viewBtn: 'View',

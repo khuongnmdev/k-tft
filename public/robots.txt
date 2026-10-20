@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://khuongnmdev.github.io/k-tft/sitemap.xml

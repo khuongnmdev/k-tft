@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#121211"/>
+      <stop offset="50%" stop-color="#181816"/>
+      <stop offset="100%" stop-color="#0d0d0c"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3987e5"/>
+      <stop offset="50%" stop-color="#9085e9"/>
+      <stop offset="100%" stop-color="#e9b949"/>
+    </linearGradient>
+    <linearGradient id="chartLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3987e5"/>
+      <stop offset="35%" stop-color="#199e70"/>
+      <stop offset="70%" stop-color="#e9b949"/>
+      <stop offset="100%" stop-color="#3987e5"/>
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#232321" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#1a1a19" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle Tactical Grid -->
+  <g opacity="0.08" stroke="#ffffff" stroke-width="1">
+    <path d="M0,105 H1200 M0,210 H1200 M0,315 H1200 M0,420 H1200 M0,525 H1200" />
+    <path d="M150,0 V630 M300,0 V630 M450,0 V630 M600,0 V630 M750,0 V630 M900,0 V630 M1050,0 V630" />
+  </g>
+
+  <!-- Left Header & Branding -->
+  <g transform="translate(80, 110)">
+    <!-- Brand Icon Hexagon -->
+    <polygon points="40,6 74,25 74,65 40,84 6,65 6,25" fill="#1e1e1c" stroke="url(#primaryGrad)" stroke-width="4"/>
+    <path d="M33,30 L33,60 M33,46 L49,30 M38,42 L50,60" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <polygon points="40,15 42,20 47,20 43,23 45,28 40,25 35,28 37,23 33,20 38,20" fill="#e9b949"/>
+
+    <!-- App Title -->
+    <text x="96" y="52" fill="#ffffff" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="52" letter-spacing="-1">k-tft</text>
+    <text x="210" y="52" fill="#8e8d86" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="28">· TFT Stats &amp; Rank Climber</text>
+
+    <!-- Headline -->
+    <text x="0" y="140" fill="url(#primaryGrad)" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="44" letter-spacing="-0.5">Thống kê đội hình &amp; Biểu đồ leo rank</text>
+    <text x="0" y="195" fill="#c3c2b7" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="400" font-size="22">Tính tỉ lệ thắng (Top 1), tỉ lệ Top 4, điểm LP ròng và lịch sử leo rank theo từng đội hình</text>
+
+    <!-- Feature Chips -->
+    <g transform="translate(0, 240)">
+      <!-- Chip 1 -->
+      <rect x="0" y="0" width="280" height="46" rx="23" fill="#232321" stroke="#3987e5" stroke-width="1.5"/>
+      <circle cx="24" cy="23" r="6" fill="#3987e5"/>
+      <text x="42" y="29" fill="#f0efec" font-family="system-ui, sans-serif" font-weight="600" font-size="16">Tỉ lệ thắng &amp; Top 4 theo đội</text>
+
+      <!-- Chip 2 -->
+      <rect x="296" y="0" width="280" height="46" rx="23" fill="#232321" stroke="#199e70" stroke-width="1.5"/>
+      <circle cx="320" cy="23" r="6" fill="#199e70"/>
+      <text x="338" y="29" fill="#f0efec" font-family="system-ui, sans-serif" font-weight="600" font-size="16">Chart LP tích lũy &amp; LP ròng</text>
+
+      <!-- Chip 3 -->
+      <rect x="592" y="0" width="270" height="46" rx="23" fill="#232321" stroke="#e9b949" stroke-width="1.5"/>
+      <circle cx="616" cy="23" r="6" fill="#e9b949"/>
+      <text x="634" y="29" fill="#f0efec" font-family="system-ui, sans-serif" font-weight="600" font-size="16">Dữ liệu MetaTFT &amp; Riot VNG</text>
+    </g>
+  </g>
+
+  <!-- Interactive Graphic Mockup Card on the right -->
+  <g transform="translate(80, 430)">
+    <rect x="0" y="0" width="1040" height="140" rx="14" fill="url(#cardBg)" stroke="#2e2e2b" stroke-width="1.5" filter="url(#shadow)"/>
+    
+    <!-- Mini comp row 1 -->
+    <circle cx="36" cy="40" r="10" fill="#3987e5"/>
+    <text x="58" y="46" fill="#ffffff" font-family="system-ui, sans-serif" font-weight="700" font-size="18">Hoa Linh Yunara</text>
+    <text x="250" y="46" fill="#8e8d86" font-family="system-ui, sans-serif" font-size="16">10 trận · Top 1: <tspan fill="#4cc94c" font-weight="700">40%</tspan> · Top 4: <tspan fill="#4cc94c" font-weight="700">80%</tspan> · LP ròng: <tspan fill="#4cc94c" font-weight="700">+148 LP</tspan></text>
+
+    <!-- Mini comp row 2 -->
+    <circle cx="36" cy="95" r="10" fill="#e9b949"/>
+    <text x="58" y="101" fill="#ffffff" font-family="system-ui, sans-serif" font-weight="700" font-size="18">Quái Rừng Sỏi</text>
+    <text x="250" y="101" fill="#8e8d86" font-family="system-ui, sans-serif" font-size="16">7 trận · Top 1: <tspan fill="#4cc94c" font-weight="700">28.6%</tspan> · Top 4: <tspan fill="#4cc94c" font-weight="700">71.4%</tspan> · LP ròng: <tspan fill="#4cc94c" font-weight="700">+92 LP</tspan></text>
+
+    <!-- Mini Chart Curve in background right -->
+    <path d="M720,110 Q800,40 880,75 T1000,30" fill="none" stroke="url(#chartLine)" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="720" cy="110" r="6" fill="#3987e5"/>
+    <circle cx="800" cy="55" r="6" fill="#199e70"/>
+    <circle cx="880" cy="75" r="6" fill="#e9b949"/>
+    <circle cx="1000" cy="30" r="7" fill="#4cc94c" stroke="#ffffff" stroke-width="2"/>
+  </g>
+</svg>
