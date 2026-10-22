@@ -13,8 +13,8 @@ Trang chạy tĩnh trên GitHub Pages: không có server, trình duyệt gọi t
 
 - Mỗi lần push lên `main`, workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml) đưa thư mục `public/` lên Pages (xem tiến độ ở tab Actions, thường dưới 1 phút).
 - Lần đầu cho repo mới: Settings → Pages → Source chọn **GitHub Actions**.
-- `app.js` tự chọn cách gọi API: trên `*.github.io` / `*.pages.dev` / `file://` thì gọi thẳng MetaTFT; ở nơi khác thì gọi `/api/*` của `server.js`, nếu nhận 404 hoặc lỗi mạng thì chuyển sang gọi thẳng. Vì vậy host tĩnh khác (Cloudflare Pages, Netlify…) cũng chạy được: chỉ cần trỏ thư mục output vào `public/`, không có bước build.
-- Pages cache file khoảng 10 phút. Khi phát hành, tăng số `?v=` trong `index.html` và các dòng `import` đầu `app.js` để người dùng nhận bản mới ngay.
+- `shared.js` tự chọn cách gọi API: trên `*.github.io` / `*.pages.dev` / `file://` thì gọi thẳng MetaTFT; ở nơi khác thì gọi `/api/*` của `server.js`, nếu nhận 404 hoặc lỗi mạng thì chuyển sang gọi thẳng. Vì vậy host tĩnh khác (Cloudflare Pages, Netlify…) cũng chạy được: chỉ cần trỏ thư mục output vào `public/`, không có bước build.
+- Pages cache file khoảng 10 phút. Khi phát hành, tăng số `?v=` trong `index.html`, `compare.html` và các dòng `import` đầu các file `.js` để người dùng nhận bản mới ngay.
 - Thử bản tĩnh trên máy (giống Pages, không có `/api`): `python -m http.server 3001 --directory public` rồi mở http://localhost:3001.
 - Muốn chạy kèm server (có cache phía server) thì deploy `server.js` lên host Node bất kỳ (Render, Fly.io, Railway…) với lệnh `npm start`; cổng lấy từ biến môi trường `PORT`.
 
@@ -34,6 +34,7 @@ Mở http://localhost:3000, nhập `Tên#Tag` (hoặc dán link MetaTFT dạng `
 - Cách nhóm: theo comp meta của MetaTFT (ghép mỗi trận với comp gần giống nhất), hoặc Tộc/Hệ chính + Carry, chỉ Carry, chỉ Tộc/Hệ.
 - Chọn mùa: mùa hiện tại và các mùa trước mà người chơi có rank (Set 9 trở đi).
 - URL lưu cả người chơi, mùa, bộ lọc và đội đang chọn (`?r=vn&id=Tên#Tag&s=TFTSet17&lang=vi&team=...`), nên gửi link là người khác mở ra thấy đúng view đó. Tên đội được dịch theo ngôn ngữ, nên link có `team` luôn kèm `lang`.
+- So sánh 1v1: chọn đối thủ (gợi ý ưu tiên kỳ thủ đã ghim) rồi mở trang `compare.html?r1=vn&id1=Tên#Tag&r2=na&id2=Tên#Tag&s=TFTSet18` với rank, chỉ số đối đầu, chart leo rank chồng nhau, phân bố thứ hạng, đội hình cả hai cùng chơi, đội tủ và tướng/trang bị của mỗi người. Đổi mùa, chế độ hoặc đổi bên ngay trên trang.
 
 ## Ghi chú
 

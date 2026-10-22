@@ -1,5 +1,22 @@
 import * as core from './core.js?v=1.2.0';
 import * as i18n from './i18n.js?v=1.2.0';
+import {
+  esc,
+  pct,
+  num,
+  signed,
+  signCls,
+  api,
+  getLookup,
+  getComps,
+  profileQuery,
+  fetchCurrentSet,
+  compareUrl,
+  PLAYSTYLE_ICONS,
+  unitsHtml,
+  masteryChampHtml,
+  masteryItemHtml,
+} from './shared.js?v=1.2.0';
 
 const t = i18n.t;
 
@@ -43,18 +60,11 @@ const state = {
 };
 
 const charts = {};
-const lookupCache = new Map();
-const compsCache = new Map();
 const matchDetailsCache = new Map();
 const expandedMatchIds = new Set();
 
 // ---------- helpers ----------
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const pct = (v) => (v == null ? '—' : `${(v * 100).toFixed(v === 1 || v === 0 ? 0 : 1)}%`);
-const num = (v, d = 2) => (v == null ? '—' : v.toFixed(d));
-const signed = (v, d = 0) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(d)}`);
-const signCls = (v) => (v == null || v === 0 ? 'muted' : v > 0 ? 'pos' : 'neg');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function hexA(hex, a) {
@@ -80,91 +90,6 @@ function setStatus(msg, isError = false) {
   el.hidden = !msg;
   el.textContent = msg ?? '';
   el.classList.toggle('error', isError);
-}
-
-let forceDirect = false;
-
-function toDirectUrl(path) {
-  const u = new URL(path, window.location.origin);
-  if (u.pathname === '/api/patch') {
-    return 'https://api-hc.metatft.com/tft-stat-api/patch';
-  }
-  if (u.pathname === '/api/lookup') {
-    const set = u.searchParams.get('set');
-    const lang = u.searchParams.get('lang') || i18n.getMetaTftLocale();
-    return `https://data.metatft.com/lookups/${set}_latest_${lang}.json`;
-  }
-  if (u.pathname === '/api/comps') {
-    const queue = u.searchParams.get('queue') || '1100';
-    const set = u.searchParams.get('set');
-    let target = `https://api-hc.metatft.com/tft-comps-api/comps_data?queue=${queue}`;
-    if (/^TFTSet\d+(_\d+)?$/.test(set ?? '')) target += `&tft_set=${set}`;
-    return target;
-  }
-  if (u.pathname === '/api/profile') {
-    const region = u.searchParams.get('region');
-    const name = u.searchParams.get('name');
-    const tag = u.searchParams.get('tag');
-    const set = u.searchParams.get('set');
-    let target = `https://api.metatft.com/public/profile/lookup_by_riotid/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?source=full_profile`;
-    if (set) target += `&tft_set=${set}`;
-    return target;
-  }
-  if (u.pathname === '/api/refresh') {
-    const region = u.searchParams.get('region');
-    const name = u.searchParams.get('name');
-    const tag = u.searchParams.get('tag');
-    return `https://api.metatft.com/public/profile/refresh_by_riotid/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?source=full_profile`;
-  }
-  if (u.pathname === '/api/search') {
-    const query = u.searchParams.get('q') || '';
-    return `https://api.metatft.com/public/search/${encodeURIComponent(query)}`;
-  }
-  if (u.pathname === '/api/match') {
-    const id = u.searchParams.get('id') || '';
-    return `https://matches3.metatft.com/${encodeURIComponent(id)}.json`;
-  }
-  return path;
-}
-
-async function api(path) {
-  const isStatic =
-    forceDirect ||
-    window.location.hostname.endsWith('github.io') ||
-    window.location.hostname.endsWith('pages.dev') ||
-    window.location.protocol === 'file:';
-
-  let targetUrl = isStatic ? toDirectUrl(path) : path;
-  let res;
-  try {
-    res = await fetch(targetUrl);
-    if (!res.ok && res.status === 404 && !isStatic && path.startsWith('/api/')) {
-      forceDirect = true;
-      targetUrl = toDirectUrl(path);
-      res = await fetch(targetUrl);
-    }
-  } catch (netErr) {
-    if (!isStatic && path.startsWith('/api/')) {
-      forceDirect = true;
-      targetUrl = toDirectUrl(path);
-      res = await fetch(targetUrl);
-    } else {
-      throw netErr;
-    }
-  }
-
-  let body = null;
-  try {
-    body = await res.json();
-  } catch {
-    /* non-JSON body */
-  }
-  if (!res.ok) {
-    const err = new Error(body?.error || body?.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  return body;
 }
 
 const colorOf = (key) => state.colors.get(key) ?? OTHER;
@@ -245,41 +170,10 @@ function applyTranslations() {
 
 // ---------- loading ----------
 
+// Null leaves the caller to fall back to the profile's own set.
 async function detectCurrentSet() {
-  if (state.currentSet) return state.currentSet;
-  try {
-    const p = await api('/api/patch');
-    const major = String(p.patch ?? '').split('.')[0];
-    if (/^\d+$/.test(major)) state.currentSet = `TFTSet${major}`;
-  } catch {
-    /* caller falls back to the profile's own set */
-  }
+  state.currentSet ??= await fetchCurrentSet();
   return state.currentSet;
-}
-
-function getLookup(set, lang = i18n.getMetaTftLocale()) {
-  const cacheKey = `${set}_${lang}`;
-  if (!lookupCache.has(cacheKey)) {
-    const base = set.replace(/_\d+$/, '');
-    const fetchWithFallback = (l) =>
-      api(`/api/lookup?set=${set}&lang=${l}`).catch((err) =>
-        base !== set ? api(`/api/lookup?set=${base}&lang=${l}`) : Promise.reject(err),
-      );
-    const p = fetchWithFallback(lang).catch((err) => (lang !== 'en_us' ? fetchWithFallback('en_us') : Promise.reject(err)));
-    p.catch(() => lookupCache.delete(cacheKey));
-    lookupCache.set(cacheKey, p);
-  }
-  return lookupCache.get(cacheKey);
-}
-
-function getComps(set) {
-  if (!compsCache.has(set)) compsCache.set(set, api(`/api/comps?queue=1100&set=${set}`).catch(() => null));
-  return compsCache.get(set);
-}
-
-function profileQuery(p) {
-  const region = core.REGIONS.find((r) => r.slug === p.region)?.api ?? 'VN2';
-  return `region=${region}&name=${encodeURIComponent(p.name)}&tag=${encodeURIComponent(p.tag)}`;
 }
 
 async function load(player, { set = null, fresh = false, retried = false } = {}) {
@@ -827,18 +721,7 @@ function renderPlacementDistribution(matches) {
     const psKey = `playstyle${dist.playstyle[0].toUpperCase()}${dist.playstyle.slice(1)}`;
     const psName = t(psKey);
     const psDesc = t(`${psKey}Desc`);
-    const icon =
-      dist.playstyle === 'highRoller'
-        ? '🎲'
-        : dist.playstyle === 'champion'
-          ? '👑'
-          : dist.playstyle === 'stabilizer'
-            ? '🛡️'
-            : dist.playstyle === 'consistent'
-              ? '📈'
-              : dist.playstyle === 'fast8th'
-                ? '⚠️'
-                : '⚖️';
+    const icon = PLAYSTYLE_ICONS[dist.playstyle] ?? PLAYSTYLE_ICONS.balanced;
 
     pBadge.innerHTML = `
       <div class="playstyle-pill playstyle-${dist.playstyle}" title="${esc(psDesc)}">
@@ -890,36 +773,7 @@ function renderMastery(matches) {
   if (champsEl) {
     const topChamps = champions.slice(0, 6);
     champsEl.innerHTML = topChamps.length
-      ? topChamps
-          .map(
-            (c) => `
-          <div class="mastery-item">
-            <div class="mastery-champ-icon c${c.cost}">
-              <img src="${esc(c.icon)}" alt="${esc(c.name)}" loading="lazy">
-              ${c.threeStar > 0 ? `<span class="mastery-3star-badge" title="${t('mastery3Star', { n: c.threeStar })}">3⭐×${c.threeStar}</span>` : ''}
-            </div>
-            <div class="mastery-info">
-              <div class="mastery-name">
-                <span class="champ-name">${esc(c.name)}</span>
-                <span class="mastery-games">${t('masteryGames', { n: c.games })}</span>
-              </div>
-              <div class="mastery-stats">
-                <span>${t('thAvgPlace')}: <strong>${c.avgPlace.toFixed(2)}</strong></span>
-                <span>${t('thTop4')}: <strong>${pct(c.top4Rate)}</strong></span>
-                <span>${t('thTop1')}: <strong>${pct(c.winRate)}</strong></span>
-              </div>
-              ${
-                c.topItems.length
-                  ? `
-                <div class="mastery-champ-items">
-                  ${c.topItems.map((it) => `<img src="${esc(it.icon)}" title="${esc(it.name)} (${it.count}x)" class="mastery-small-item" loading="lazy">`).join('')}
-                </div>`
-                  : ''
-              }
-            </div>
-          </div>`,
-          )
-          .join('')
+      ? topChamps.map(masteryChampHtml).join('')
       : `<div class="muted">${t('noMatches')}</div>`;
   }
 
@@ -927,27 +781,7 @@ function renderMastery(matches) {
   if (itemsEl) {
     const topItems = items.slice(0, 8);
     itemsEl.innerHTML = topItems.length
-      ? topItems
-          .map(
-            (it) => `
-          <div class="mastery-item">
-            <div class="mastery-item-icon">
-              <img src="${esc(it.icon)}" alt="${esc(it.name)}" loading="lazy">
-            </div>
-            <div class="mastery-info">
-              <div class="mastery-name">
-                <span class="item-name">${esc(it.name)}</span>
-                <span class="mastery-games">${it.count}x</span>
-              </div>
-              <div class="mastery-stats">
-                <span>${t('thAvgPlace')}: <strong>${it.avgPlace.toFixed(2)}</strong></span>
-                <span>${t('thTop4')}: <strong>${pct(it.top4Rate)}</strong></span>
-                <span>${t('thTop1')}: <strong>${pct(it.winRate)}</strong></span>
-              </div>
-            </div>
-          </div>`,
-          )
-          .join('')
+      ? topItems.map(masteryItemHtml).join('')
       : `<div class="muted">${t('noMatches')}</div>`;
   }
 }
@@ -993,12 +827,6 @@ function renderMetaTierList(groups) {
           <td class="left">${userHtml}</td>
         </tr>`;
     })
-    .join('');
-}
-
-function unitsHtml(units, size = '') {
-  return units
-    .map((u) => `<div class="unit c${u.cost}${size}" title="${esc(u.name)}"><img src="${esc(u.icon)}" alt="${esc(u.name)}" loading="lazy"></div>`)
     .join('');
 }
 
@@ -1666,15 +1494,14 @@ function renderMatches(matches) {
 
 // ---------- wiring ----------
 
-function setupAutocomplete() {
-  const inputEl = $('player');
-  const dropdownEl = $('autocomplete-dropdown');
-  const regionEl = $('region');
+// Player autocomplete, shared by the top search and the 1v1 compare box.
+// An empty input lists recent searches; with `pinFavorites` pinned players come first.
+function setupAutocomplete({ inputEl, dropdownEl, getRegion, onSelect, pinFavorites = false, exclude = () => null }) {
   if (!inputEl || !dropdownEl) return;
+  const wrapEl = inputEl.closest('.search-input-wrap');
 
   let activeIndex = -1;
   let currentResults = [];
-  let isRecentMode = false;
   let debounceTimer = null;
   const searchCache = new Map();
 
@@ -1686,7 +1513,6 @@ function setupAutocomplete() {
     dropdownEl.hidden = true;
     activeIndex = -1;
     currentResults = [];
-    isRecentMode = false;
   }
 
   function updateActiveItem(scroll = true) {
@@ -1700,106 +1526,101 @@ function setupAutocomplete() {
   }
 
   function selectItem(item) {
-    const regionSlug = core.regionToSlug(item.region);
-    regionEl.value = regionSlug;
+    const player = { region: core.regionToSlug(item.region), name: item.name, tag: item.tag };
     inputEl.value = `${item.name}#${item.tag}`;
     closeDropdown();
-    saveRecentSearch({
-      region: regionSlug,
-      name: item.name,
-      tag: item.tag,
-      icon: item.icon,
-      rating: item.rating,
-      games: item.games,
-    });
-    load({ region: regionSlug, name: item.name, tag: item.tag });
+    saveRecentSearch({ ...player, icon: item.icon, rating: item.rating, games: item.games });
+    onSelect(player);
   }
+
+  const isExcluded = (p) => {
+    const ex = exclude();
+    return !!ex && playerKey(ex) === playerKey(p);
+  };
+
+  // Accent-insensitive, so "banh" finds "Bánh".
+  const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase();
+
+  function pinnedItems(name = '', tag = '') {
+    if (!pinFavorites) return [];
+    return getFavorites()
+      .filter((f) => fold(f.name).includes(fold(name)) && fold(f.tag).startsWith(fold(tag)) && !isExcluded(f))
+      .map((f) => ({ region: f.region, name: f.name, tag: f.tag, rating: f.rank, pinned: true }));
+  }
+
+  function itemHtml(item, idx, removable) {
+    return `
+        <div class="ac-item" data-idx="${idx}">
+          <img class="ac-avatar" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${item.icon || 29}.jpg" onerror="this.onerror=null;this.src='favicon.svg'" alt="" loading="lazy">
+          <div class="ac-info">
+            <div class="ac-name-row">
+              ${item.pinned ? '<span class="ac-pin">★</span>' : ''}
+              <span class="ac-name">${esc(item.name)}</span>
+              <span class="ac-tag">#${esc(item.tag)}</span>
+            </div>
+            ${item.rating ? `<div class="ac-detail-row"><span class="ac-tier" style="color:${core.getTierColor(item.rating)}">${esc(item.rating)}</span>${item.games ? `<span class="ac-games">· ${esc(t('searchGamesCount', { n: item.games }))}</span>` : ''}</div>` : ''}
+          </div>
+          <span class="ac-region">${esc(core.regionToLabel(item.region))}</span>
+          ${removable ? `<button type="button" class="ac-remove" data-remove-idx="${idx}" title="${esc(t('clearSel'))}">&times;</button>` : ''}
+        </div>`;
+  }
+
+  // Sections share one index space so arrow keys move through all of them.
+  function renderSections(sections) {
+    const shown = sections.filter((s) => s.items.length);
+    currentResults = shown.flatMap((s) => s.items);
+    activeIndex = -1;
+    let idx = 0;
+    dropdownEl.innerHTML = shown
+      .map(
+        (s) => `
+      <div class="ac-header">
+        <span>${esc(s.title)}</span>
+        ${s.removable ? `<button type="button" class="ac-clear-recent">${esc(t('searchClearRecent'))}</button>` : ''}
+      </div>
+      ${s.items.map((item) => itemHtml(item, idx++, s.removable)).join('')}`,
+      )
+      .join('');
+    openDropdown();
+  }
+
+  function renderMessage(html) {
+    currentResults = [];
+    activeIndex = -1;
+    dropdownEl.innerHTML = `<div class="ac-message">${html}</div>`;
+    openDropdown();
+  }
+
+  const spinnerHtml = () => `<div class="ac-spinner"></div><span>${esc(t('searchSearching'))}</span>`;
 
   function renderRecent() {
-    const recent = getRecentSearches();
-    currentResults = recent;
-    isRecentMode = true;
-    activeIndex = -1;
-
-    if (!recent.length) {
-      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchEmptyHint'))}</div>`;
-      openDropdown();
+    const pinned = pinnedItems();
+    const pinnedKeys = new Set(pinned.map(playerKey));
+    const recent = getRecentSearches().filter((x) => !isExcluded(x) && !pinnedKeys.has(playerKey(x)));
+    if (!pinned.length && !recent.length) {
+      renderMessage(esc(t('searchEmptyHint')));
       return;
     }
-
-    const itemsHtml = recent
-      .map(
-        (item, i) => `
-        <div class="ac-item" data-idx="${i}">
-          <img class="ac-avatar" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${item.icon || 29}.jpg" onerror="this.onerror=null;this.src='favicon.svg'" alt="" loading="lazy">
-          <div class="ac-info">
-            <div class="ac-name-row">
-              <span class="ac-name">${esc(item.name)}</span>
-              <span class="ac-tag">#${esc(item.tag)}</span>
-            </div>
-            ${item.rating ? `<div class="ac-detail-row"><span class="ac-tier" style="color:${core.getTierColor(item.rating)}">${esc(item.rating)}</span>${item.games ? `<span class="ac-games">· ${esc(t('searchGamesCount', { n: item.games }))}</span>` : ''}</div>` : ''}
-          </div>
-          <span class="ac-region">${esc(core.regionToLabel(item.region))}</span>
-          <button type="button" class="ac-remove" data-remove-idx="${i}" title="${esc(t('clearSel'))}">&times;</button>
-        </div>`
-      )
-      .join('');
-
-    dropdownEl.innerHTML = `
-      <div class="ac-header">
-        <span>${esc(t('searchRecentTitle'))}</span>
-        <button type="button" id="ac-clear-recent">${esc(t('searchClearRecent'))}</button>
-      </div>
-      ${itemsHtml}
-    `;
-    openDropdown();
+    renderSections([
+      { title: t('favoriteTitle'), items: pinned },
+      { title: t('searchRecentTitle'), items: recent, removable: true },
+    ]);
   }
 
-  function renderSearchResults(items, query) {
-    currentResults = items;
-    isRecentMode = false;
-    activeIndex = -1;
-
-    if (!items.length) {
-      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchNoResults'))}</div>`;
-      openDropdown();
+  // `items` is null while the search request is in flight; pinned matches show right away.
+  function renderSearchResults(items, name, tag) {
+    const pinned = pinnedItems(name, tag);
+    const pinnedKeys = new Set(pinned.map(playerKey));
+    const rest = (items ?? []).filter((x) => !isExcluded(x) && !pinnedKeys.has(playerKey(x)));
+    if (!pinned.length && !rest.length) {
+      renderMessage(items ? esc(t('searchNoResults')) : spinnerHtml());
       return;
     }
-
-    const itemsHtml = items
-      .map(
-        (item, i) => `
-        <div class="ac-item" data-idx="${i}">
-          <img class="ac-avatar" src="https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${item.icon || 29}.jpg" onerror="this.onerror=null;this.src='favicon.svg'" alt="" loading="lazy">
-          <div class="ac-info">
-            <div class="ac-name-row">
-              <span class="ac-name">${esc(item.name)}</span>
-              <span class="ac-tag">#${esc(item.tag)}</span>
-            </div>
-            ${item.rating ? `<div class="ac-detail-row"><span class="ac-tier" style="color:${core.getTierColor(item.rating)}">${esc(item.rating)}</span>${item.games ? `<span class="ac-games">· ${esc(t('searchGamesCount', { n: item.games }))}</span>` : ''}</div>` : ''}
-          </div>
-          <span class="ac-region">${esc(core.regionToLabel(item.region))}</span>
-        </div>`
-      )
-      .join('');
-
-    dropdownEl.innerHTML = `
-      <div class="ac-header">
-        <span>${esc(t('searchSuggestedTitle'))} (${items.length})</span>
-      </div>
-      ${itemsHtml}
-    `;
-    openDropdown();
-  }
-
-  function renderLoading() {
-    dropdownEl.innerHTML = `
-      <div class="ac-message">
-        <div class="ac-spinner"></div>
-        <span>${esc(t('searchSearching'))}</span>
-      </div>
-    `;
-    openDropdown();
+    renderSections([
+      { title: t('favoriteTitle'), items: pinned },
+      { title: `${t('searchSuggestedTitle')} (${rest.length})`, items: rest },
+    ]);
+    if (!items) dropdownEl.insertAdjacentHTML('beforeend', `<div class="ac-message">${spinnerHtml()}</div>`);
   }
 
   async function triggerSearch(q) {
@@ -1825,7 +1646,7 @@ function setupAutocomplete() {
     }
 
     const cacheKey = searchName.toLowerCase();
-    const curRegionSlug = regionEl.value.toLowerCase();
+    const curRegionSlug = getRegion().toLowerCase();
     const curRegionApi = core.REGIONS.find((r) => r.slug === curRegionSlug)?.api?.toLowerCase() || '';
 
     function processAndRender(rawList) {
@@ -1868,7 +1689,7 @@ function setupAutocomplete() {
 
       const top10 = filtered.slice(0, 10);
       searchCache.set(cacheKey, rawList);
-      renderSearchResults(top10, trimmed);
+      renderSearchResults(top10, cacheKey, filterTag);
     }
 
     if (searchCache.has(cacheKey)) {
@@ -1876,7 +1697,7 @@ function setupAutocomplete() {
       return;
     }
 
-    renderLoading();
+    renderSearchResults(null, cacheKey, filterTag);
 
     try {
       const res = await api(`/api/search?q=${encodeURIComponent(searchName)}`);
@@ -1884,8 +1705,7 @@ function setupAutocomplete() {
       processAndRender(rawList);
     } catch (err) {
       console.warn('Search error:', err);
-      dropdownEl.innerHTML = `<div class="ac-message">${esc(t('searchNoResults'))}</div>`;
-      openDropdown();
+      renderSearchResults([], cacheKey, filterTag);
     }
   }
 
@@ -1943,6 +1763,7 @@ function setupAutocomplete() {
         selectItem(currentResults[activeIndex]);
       }
     } else if (e.key === 'Escape') {
+      // Inside the compare dialog, Escape closes the list first, not the dialog.
       e.preventDefault();
       closeDropdown();
     }
@@ -1960,7 +1781,7 @@ function setupAutocomplete() {
       }
       return;
     }
-    const clearBtn = e.target.closest('#ac-clear-recent');
+    const clearBtn = e.target.closest('.ac-clear-recent');
     if (clearBtn) {
       e.stopPropagation();
       clearRecentSearches();
@@ -1986,8 +1807,9 @@ function setupAutocomplete() {
     }
   });
 
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.search-input-wrap')) {
+  // pointerdown, not click: the click that opens the compare dialog also focuses this input.
+  document.addEventListener('pointerdown', (e) => {
+    if (!wrapEl?.contains(e.target)) {
       closeDropdown();
     }
   });
@@ -2079,130 +1901,38 @@ function setupCompareModal() {
   const closeBtn = $('compare-close');
   const form = $('compare-form');
   const statusEl = $('compare-status');
-  const resultEl = $('compare-result');
 
   closeBtn?.addEventListener('click', () => modal?.close());
   modal?.addEventListener('click', (e) => {
     if (e.target === modal) modal.close();
   });
 
-  form?.addEventListener('submit', async (e) => {
+  // A suggestion keeps its own region, which a typed Name#Tag would not carry.
+  let picked = null;
+  setupAutocomplete({
+    inputEl: $('compare-input'),
+    dropdownEl: $('compare-dropdown'),
+    getRegion: () => state.player?.region || 'vn',
+    pinFavorites: true,
+    exclude: () => state.player,
+    onSelect: (p) => {
+      picked = p;
+    },
+  });
+
+  // The full comparison lives on its own page, so the link can be shared like a player link.
+  form?.addEventListener('submit', (e) => {
     e.preventDefault();
+    $('compare-dropdown').hidden = true;
     const val = $('compare-input').value.trim();
-    const opp = core.parsePlayerInput(val, state.player?.region || 'vn');
+    const opp =
+      picked && val === `${picked.name}#${picked.tag}` ? picked : core.parsePlayerInput(val, state.player?.region || 'vn');
     if (!opp) {
       statusEl.hidden = false;
       statusEl.textContent = t('invalidInput');
       return;
     }
-
-    statusEl.hidden = false;
-    statusEl.textContent = t('loadingPlayer', { season: core.setLabel(state.set) + ' ', name: opp.name, tag: opp.tag });
-    resultEl.hidden = true;
-
-    try {
-      const oppProfile = await api(`/api/profile?${profileQuery(opp)}&set=${state.set}`);
-      const oppMatches = core.processProfile(oppProfile, state.lk, state.set);
-      const p1 = state.player;
-      const s1 = core.summarize(filtered());
-      const s2 = core.summarize(oppMatches.filter((m) => state.queue === 'all' || m.queue === Number(state.queue)));
-
-      const r1 = state.profile?.ranked ?? {};
-      const r2 = oppProfile.ranked ?? {};
-      const tier1 = core.getRankTier(r1.rating_text, r1.rating_numeric);
-      const tier2 = core.getRankTier(r2.rating_text, r2.rating_numeric);
-
-      const numVal1 = r1.rating_numeric ?? 0;
-      const numVal2 = r2.rating_numeric ?? 0;
-
-      const deltaClass = (v1, v2, lowerIsBetter = false) => {
-        if (v1 == null || v2 == null || v1 === v2) return ['', ''];
-        const p1Better = lowerIsBetter ? v1 < v2 : v1 > v2;
-        return p1Better ? ['better', 'worse'] : ['worse', 'better'];
-      };
-
-      const [rankCls1, rankCls2] = deltaClass(numVal1, numVal2);
-      const [winCls1, winCls2] = deltaClass(s1.winRate, s2.winRate);
-      const [top4Cls1, top4Cls2] = deltaClass(s1.top4Rate, s2.top4Rate);
-      const [avgCls1, avgCls2] = deltaClass(s1.avgPlace, s2.avgPlace, true);
-      const [lpCls1, lpCls2] = deltaClass(s1.lpNet, s2.lpNet);
-
-      statusEl.hidden = true;
-      resultEl.hidden = false;
-      resultEl.innerHTML = `
-        <div class="compare-grid">
-          <div class="compare-card p1">
-            <div class="compare-player-header">
-              <h4>${esc(p1.name)} <small>#${esc(p1.tag)}</small></h4>
-              <div class="rank tier-${tier1}">${esc(r1.rating_text ?? t('unranked'))}</div>
-            </div>
-            <div class="compare-stats">
-              <div class="compare-stat-row ${rankCls1}">
-                <span class="cs-label">${t('compareRank')}</span>
-                <span class="cs-val">${esc(r1.rating_text ?? '—')}</span>
-              </div>
-              <div class="compare-stat-row">
-                <span class="cs-label">${t('tileGames')}</span>
-                <span class="cs-val">${s1.games}</span>
-              </div>
-              <div class="compare-stat-row ${avgCls1}">
-                <span class="cs-label">${t('compareAvgPlace')}</span>
-                <span class="cs-val">${s1.avgPlace ? s1.avgPlace.toFixed(2) : '—'}</span>
-              </div>
-              <div class="compare-stat-row ${top4Cls1}">
-                <span class="cs-label">${t('compareTop4Rate')}</span>
-                <span class="cs-val">${pct(s1.top4Rate)}</span>
-              </div>
-              <div class="compare-stat-row ${winCls1}">
-                <span class="cs-label">${t('compareWinRate')}</span>
-                <span class="cs-val">${pct(s1.winRate)}</span>
-              </div>
-              <div class="compare-stat-row ${lpCls1}">
-                <span class="cs-label">${t('compareNetLp')}</span>
-                <span class="cs-val">${signed(s1.lpNet)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="compare-vs">${t('compareVs')}</div>
-
-          <div class="compare-card p2">
-            <div class="compare-player-header">
-              <h4>${esc(opp.name)} <small>#${esc(opp.tag)}</small></h4>
-              <div class="rank tier-${tier2}">${esc(r2.rating_text ?? t('unranked'))}</div>
-            </div>
-            <div class="compare-stats">
-              <div class="compare-stat-row ${rankCls2}">
-                <span class="cs-label">${t('compareRank')}</span>
-                <span class="cs-val">${esc(r2.rating_text ?? '—')}</span>
-              </div>
-              <div class="compare-stat-row">
-                <span class="cs-label">${t('tileGames')}</span>
-                <span class="cs-val">${s2.games}</span>
-              </div>
-              <div class="compare-stat-row ${avgCls2}">
-                <span class="cs-label">${t('compareAvgPlace')}</span>
-                <span class="cs-val">${s2.avgPlace ? s2.avgPlace.toFixed(2) : '—'}</span>
-              </div>
-              <div class="compare-stat-row ${top4Cls2}">
-                <span class="cs-label">${t('compareTop4Rate')}</span>
-                <span class="cs-val">${pct(s2.top4Rate)}</span>
-              </div>
-              <div class="compare-stat-row ${winCls2}">
-                <span class="cs-label">${t('compareWinRate')}</span>
-                <span class="cs-val">${pct(s2.winRate)}</span>
-              </div>
-              <div class="compare-stat-row ${lpCls2}">
-                <span class="cs-label">${t('compareNetLp')}</span>
-                <span class="cs-val">${signed(s2.lpNet)}</span>
-              </div>
-            </div>
-          </div>
-        </div>`;
-    } catch (err) {
-      statusEl.hidden = false;
-      statusEl.textContent = t('loadError', { msg: err.message || err });
-    }
+    location.href = compareUrl(state.player, opp, { set: state.set, queue: state.queue });
   });
 }
 
@@ -2210,9 +1940,10 @@ function openCompareModal() {
   const modal = $('compare-modal');
   if (!modal) return;
   $('compare-input').value = '';
+  $('compare-dropdown').hidden = true;
   $('compare-status').hidden = true;
-  $('compare-result').hidden = true;
   modal.showModal();
+  $('compare-input').focus();
 }
 
 // ---------- Share Player Card Modal & Canvas Generator ----------
@@ -2539,7 +2270,15 @@ function init() {
     .join('');
   $('group-mode').value = state.groupMode;
 
-  setupAutocomplete();
+  setupAutocomplete({
+    inputEl: $('player'),
+    dropdownEl: $('autocomplete-dropdown'),
+    getRegion: () => $('region').value,
+    onSelect: (p) => {
+      $('region').value = p.region;
+      load(p);
+    },
+  });
 
   $('search').addEventListener('submit', (e) => {
     e.preventDefault();

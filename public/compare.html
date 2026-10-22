@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>So sánh 1v1 | k-tft</title>
+  <meta name="description" content="So sánh rank, tỉ lệ Top 4, Top 1, LP, đội hình và tướng tủ của hai kỳ thủ TFT.">
+  <meta name="robots" content="noindex, follow">
+  <meta name="theme-color" content="#121211">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <link rel="stylesheet" href="style.css?v=1.2.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand cmp-brand" href="./">k-tft <span class="app-version-badge app-version">v1.2.0</span> <span data-i18n="cmpBrandSub">so sánh 1v1</span></a>
+    <div class="cmp-toolbar">
+      <label><span data-i18n="seasonLabel">Mùa</span>
+        <select id="season"></select>
+      </label>
+      <label><span data-i18n="modeLabel">Chế độ</span>
+        <select id="queue">
+          <option value="1100" data-i18n="queueRanked">Xếp hạng</option>
+          <option value="all" data-i18n="queueAll">Tất cả</option>
+        </select>
+      </label>
+      <button type="button" id="swap" class="ghost" data-i18n="cmpSwap">⇄ Đổi bên</button>
+      <button type="button" id="copy-link" class="ghost" data-i18n="copyLink">Sao chép link</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="status" class="status" hidden></div>
+
+    <section id="cmp-head" class="cmp-head" hidden></section>
+
+    <section id="cmp-stats-section" class="card" hidden>
+      <div class="card-head">
+        <h2 data-i18n="cmpStatsHeading">Chỉ số đối đầu</h2>
+        <p class="hint" data-i18n="cmpStatsHint">Ô xanh là bên tốt hơn ở chỉ số đó.</p>
+      </div>
+      <div id="cmp-stats" class="cmp-stats"></div>
+    </section>
+
+    <section id="cmp-charts" class="charts" hidden>
+      <div class="card wide">
+        <div class="card-head">
+          <h2 data-i18n="lpTitle">Leo rank theo thời gian</h2>
+          <p class="hint" data-i18n="cmpLpHint">LP sau mỗi trận xếp hạng của từng người.</p>
+        </div>
+        <div class="cmp-legend legend" id="lp-legend"></div>
+        <div class="chart-box tall"><canvas id="lp-chart"></canvas></div>
+      </div>
+      <div class="card wide">
+        <div class="card-head">
+          <h2 data-i18n="placeTitle">Phân bố thứ hạng</h2>
+          <p class="hint" data-i18n="cmpPlacementHint">% số trận ở mỗi thứ hạng.</p>
+        </div>
+        <div class="cmp-legend legend" id="place-legend"></div>
+        <div class="chart-box"><canvas id="place-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section id="cmp-common-section" class="card" hidden>
+      <div class="card-head">
+        <h2 data-i18n="cmpCommonComps">Đội hình cả hai cùng chơi</h2>
+        <p class="hint" id="cmp-common-hint"></p>
+      </div>
+      <div class="table-wrap" id="cmp-common"></div>
+    </section>
+
+    <section id="cmp-top-section" class="card" hidden>
+      <div class="card-head">
+        <h2 data-i18n="cmpTopComps">Đội hình chơi nhiều nhất</h2>
+      </div>
+      <div id="cmp-top" class="cmp-columns"></div>
+    </section>
+
+    <section id="cmp-mastery-section" class="card" hidden>
+      <div class="card-head">
+        <h2 data-i18n="masteryHeading">Tướng gánh &amp; Trang bị trấn phái</h2>
+      </div>
+      <div id="cmp-mastery" class="cmp-columns"></div>
+    </section>
+  </main>
+
+  <script type="module" src="compare.js?v=1.2.0"></script>
+</body>
+</html>
