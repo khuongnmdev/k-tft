@@ -96,7 +96,10 @@ function toDirectUrl(path) {
   }
   if (u.pathname === '/api/comps') {
     const queue = u.searchParams.get('queue') || '1100';
-    return `https://api-hc.metatft.com/tft-comps-api/comps_data?queue=${queue}`;
+    const set = u.searchParams.get('set');
+    let target = `https://api-hc.metatft.com/tft-comps-api/comps_data?queue=${queue}`;
+    if (/^TFTSet\d+(_\d+)?$/.test(set ?? '')) target += `&tft_set=${set}`;
+    return target;
   }
   if (u.pathname === '/api/profile') {
     const region = u.searchParams.get('region');
@@ -388,8 +391,10 @@ function syncUrl() {
   put('q', state.queue, '1100');
   put('p', state.patch, 'all');
   put('min', String(state.minGames), '1');
-  put('lang', i18n.getLang(), i18n.DEFAULT_LANG);
-  put('team', state.selected ? state.all.find((m) => m.compKey === state.selected)?.compLabel : null, null);
+  const team = state.selected ? state.all.find((m) => m.compKey === state.selected)?.compLabel : null;
+  // Team labels are localized, so a link with a team pins the language even when it is the default.
+  put('lang', i18n.getLang(), team ? null : i18n.DEFAULT_LANG);
+  put('team', team, null);
   history.replaceState(null, '', url);
 }
 
