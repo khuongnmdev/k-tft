@@ -2070,7 +2070,10 @@ function generateShareCanvas() {
 
   ctx.fillStyle = tierColor;
   ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`◆ ${rankText}`, 60, 185);
+  const rankLabel = `◆ ${rankText}`;
+  ctx.fillText(rankLabel, 60, 185);
+  // Measured in the rank's own font, before the smaller one below replaces it.
+  const rankWidth = ctx.measureText(rankLabel).width;
 
   // Server standing
   const sr = profile?.server_rank;
@@ -2079,7 +2082,7 @@ function generateShareCanvas() {
     const topPctText = topVal == null ? '' : `Top ${topVal < 0.1 ? '<0.1' : topVal.toFixed(1)}%`;
     ctx.fillStyle = '#c3c2b7';
     ctx.font = '18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(`· Hạng #${sr.rank.toLocaleString()} (${topPctText} server)`, 60 + ctx.measureText(`◆ ${rankText}`).width + 20, 185);
+    ctx.fillText(`· Hạng #${sr.rank.toLocaleString()} (${topPctText} server)`, 60 + rankWidth + 14, 185);
   }
 
   // Titles / Badges
@@ -2100,6 +2103,7 @@ function generateShareCanvas() {
     ctx.fillStyle = '#ffaa00';
     ctx.font = '15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     const bText = `${tItem.icon} ${tItem.name}`;
+    if (badgeX + ctx.measureText(bText).width > w - 60) break;
     ctx.fillText(bText, badgeX, 225);
     badgeX += ctx.measureText(bText).width + 20;
   }
@@ -2159,13 +2163,18 @@ function generateShareCanvas() {
     ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillText('TOP TƯỚNG GÁNH (MOST PLAYED CARRIES):', 60, 520);
 
-    let champX = 60;
-    top4.forEach((c) => {
+    // Four equal columns inside the frame, name above stats, so a long row never runs off the card.
+    const gap = 24;
+    const colW = (w - 120 - 3 * gap) / 4;
+    top4.forEach((c, i) => {
+      const x = 60 + i * (colW + gap);
       ctx.fillStyle = '#f0efec';
       ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      const cText = `${c.name} (${c.games} trận · Hạng ${c.avgPlace.toFixed(1)}${c.threeStar ? ` · 3⭐x${c.threeStar}` : ''})`;
-      ctx.fillText(cText, champX, 550);
-      champX += ctx.measureText(cText).width + 30;
+      ctx.fillText(fitText(ctx, c.name, colW), x, 546);
+      ctx.fillStyle = '#c3c2b7';
+      ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const cStats = `${c.games} trận · Hạng ${c.avgPlace.toFixed(1)}${c.threeStar ? ` · 3⭐x${c.threeStar}` : ''}`;
+      ctx.fillText(fitText(ctx, cStats, colW), x, 567);
     });
   }
 
@@ -2173,7 +2182,17 @@ function generateShareCanvas() {
   ctx.fillStyle = '#5c5b57';
   ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText('https://khuongnmdev.github.io/k-tft/', 60, 595);
-  ctx.fillText(new Date().toLocaleDateString(), w - 160, 595);
+  ctx.textAlign = 'right';
+  ctx.fillText(new Date().toLocaleDateString(), w - 60, 595);
+  ctx.textAlign = 'left';
+}
+
+// Cuts text with an ellipsis so it fits maxWidth in the context's current font.
+function fitText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let s = text;
+  while (s.length > 1 && ctx.measureText(`${s}…`).width > maxWidth) s = s.slice(0, -1);
+  return `${s.trimEnd()}…`;
 }
 
 // ---------- Tabs & Favorites Setup ----------
