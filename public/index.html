@@ -245,23 +245,29 @@
 
     <section id="meta-section" class="card" hidden>
       <div class="card-head">
-        <h2 id="meta-tier-heading" data-i18n="metaTierHeading">Meta Tier List</h2>
-        <p class="hint" data-i18n="metaTierDesc">Danh sách các đội hình meta mạnh nhất kết hợp với hiệu suất chơi của bạn.</p>
+        <h2 id="meta-tier-heading">Meta Tier List</h2>
+        <p class="hint" id="meta-patch-info"></p>
+        <div class="meta-filters">
+          <label><span data-i18n="metaRankLabel">Rank</span>
+            <select id="meta-rank">
+              <option value="all" data-i18n="metaRankAll">Mọi rank</option>
+              <option value="plat" data-i18n="metaRankPlat">Bạch Kim+</option>
+              <option value="diamond" data-i18n="metaRankDiamond">Kim Cương+</option>
+              <option value="master" data-i18n="metaRankMaster">Cao Thủ+</option>
+            </select>
+          </label>
+          <label><span data-i18n="metaDaysLabel">Dữ liệu</span>
+            <select id="meta-days">
+              <option value="1">1</option>
+              <option value="3">3</option>
+              <option value="7">7</option>
+            </select>
+          </label>
+        </div>
       </div>
-      <div class="table-wrap">
-        <table id="meta-table">
-          <thead>
-            <tr>
-              <th data-i18n="metaColTier">Tier</th>
-              <th class="left" data-i18n="metaColComp">Đội hình</th>
-              <th data-i18n="metaColAvg">Hạng TB Meta</th>
-              <th data-i18n="metaColMetaCount">Độ phổ biến</th>
-              <th class="left" data-i18n="metaColYourStats">Hiệu suất của bạn</th>
-            </tr>
-          </thead>
-          <tbody id="meta-table-body"></tbody>
-        </table>
-      </div>
+      <p class="hint meta-hint" data-i18n="metaTierHint">Xếp tier theo hạng trung bình.</p>
+      <div id="meta-status" class="meta-status" hidden></div>
+      <div id="meta-tiers" class="meta-tiers"></div>
     </section>
   </main>
 

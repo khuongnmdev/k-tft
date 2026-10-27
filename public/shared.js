@@ -29,6 +29,14 @@ function toDirectUrl(path) {
     if (/^TFTSet\d+(_\d+)?$/.test(set ?? '')) target += `&tft_set=${set}`;
     return target;
   }
+  if (u.pathname === '/api/comps-stats') {
+    const queue = u.searchParams.get('queue') || '1100';
+    const days = u.searchParams.get('days') || '3';
+    const rank = u.searchParams.get('rank');
+    let target = `https://api-hc.metatft.com/tft-comps-api/comps_stats?queue=${queue}&patch=current&days=${days}&permit_filter_adjustment=true`;
+    if (rank) target += `&rank=${rank}`;
+    return target;
+  }
   if (u.pathname === '/api/profile') {
     const region = u.searchParams.get('region');
     const name = u.searchParams.get('name');
@@ -118,20 +126,40 @@ export function getComps(set) {
   return compsCache.get(set);
 }
 
+const compsStatsCache = new Map();
+
+// `rank` is MetaTFT's comma list of tiers ('' = every rank); `days` looks back from now on the current patch.
+export function getCompsStats(rank, days) {
+  const key = `${rank}|${days}`;
+  if (!compsStatsCache.has(key)) {
+    const p = api(`/api/comps-stats?queue=1100&days=${days}${rank ? `&rank=${rank}` : ''}`);
+    p.catch(() => compsStatsCache.delete(key));
+    compsStatsCache.set(key, p);
+  }
+  return compsStatsCache.get(key);
+}
+
 export function profileQuery(p) {
   const region = core.REGIONS.find((r) => r.slug === p.region)?.api ?? 'VN2';
   return `region=${region}&name=${encodeURIComponent(p.name)}&tag=${encodeURIComponent(p.tag)}`;
 }
 
+let patchInfo = null;
+
+// The live patch, e.g. { patch: '18.5', ... }; null when MetaTFT can't be reached (the next call retries).
+export function fetchPatch() {
+  patchInfo ??= api('/api/patch').catch(() => {
+    patchInfo = null;
+    return null;
+  });
+  return patchInfo;
+}
+
 // The live patch's major version names the current set ("16.12" -> TFTSet16); null when MetaTFT can't tell.
 export async function fetchCurrentSet() {
-  try {
-    const p = await api('/api/patch');
-    const major = String(p.patch ?? '').split('.')[0];
-    return /^\d+$/.test(major) ? `TFTSet${major}` : null;
-  } catch {
-    return null;
-  }
+  const p = await fetchPatch();
+  const major = String(p?.patch ?? '').split('.')[0];
+  return /^\d+$/.test(major) ? `TFTSet${major}` : null;
 }
 
 // ---------- page links ----------

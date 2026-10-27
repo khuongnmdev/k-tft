@@ -9,7 +9,9 @@ import {
   api,
   getLookup,
   getComps,
+  getCompsStats,
   profileQuery,
+  fetchPatch,
   fetchCurrentSet,
   compareUrl,
   PLAYSTYLE_ICONS,
@@ -57,7 +59,19 @@ const state = {
   pendingPatch: null, // from a shared URL, applied by the next load
   pendingTeam: null,
   activeTab: 'profile', // 'profile' | 'meta'
+  metaRank: 'plat', // key of META_RANKS
+  metaDays: '3',
+  meta: null, // latest-patch tier list data: { key, set, patch, lk, clusters, stats }
 };
+
+// Rank filters for the meta tier list, as MetaTFT's comma lists of tiers.
+const META_RANKS = {
+  all: '',
+  plat: 'PLATINUM,EMERALD,DIAMOND,MASTER,GRANDMASTER,CHALLENGER',
+  diamond: 'DIAMOND,MASTER,GRANDMASTER,CHALLENGER',
+  master: 'MASTER,GRANDMASTER,CHALLENGER',
+};
+const META_DAYS = ['1', '3', '7'];
 
 const charts = {};
 const matchDetailsCache = new Map();
@@ -166,6 +180,10 @@ function applyTranslations() {
   // Update patch 'all'
   const patchAll = $('patch').querySelector('option[value="all"]');
   if (patchAll) patchAll.textContent = t('patchAll');
+
+  for (const opt of $('meta-days').options) {
+    opt.textContent = t('metaDaysOpt', { n: opt.value });
+  }
 }
 
 // ---------- loading ----------
@@ -289,6 +307,9 @@ function syncUrl() {
   // Team labels are localized, so a link with a team pins the language even when it is the default.
   put('lang', i18n.getLang(), team ? null : i18n.DEFAULT_LANG);
   put('team', team, null);
+  put('tab', state.activeTab, 'profile');
+  put('mr', state.metaRank, 'plat');
+  put('md', state.metaDays, '3');
   history.replaceState(null, '', url);
 }
 
@@ -499,10 +520,10 @@ function switchTab(tab) {
   $('mastery-section').hidden = !isProfile || !hasData;
   $('matches-section').hidden = !isProfile || !hasData;
 
-  $('meta-section').hidden = isProfile || !hasData;
-  if (tab === 'meta') {
-    renderMetaTierList(core.aggregate(filtered()));
-  }
+  // The tier list is for the live patch and needs no player, so it shows even when no profile loaded.
+  $('meta-section').hidden = isProfile;
+  if (tab === 'meta') loadMeta();
+  syncUrl();
 }
 
 function render() {
@@ -537,9 +558,8 @@ function render() {
   renderTable(groups);
   renderSelectionViews(matches, groups);
   renderMastery(matches);
-  renderMetaTierList(groups);
+  renderMetaTierList();
   switchTab(state.activeTab || 'profile');
-  syncUrl();
 }
 
 function applyRowSelection() {
@@ -786,48 +806,128 @@ function renderMastery(matches) {
   }
 }
 
-// ---------- Meta Tier List Processing & Rendering ----------
+// ---------- Meta Tier List ----------
 
-function renderMetaTierList(groups) {
-  const list = core.processMetaTierList(state.clusters, groups);
-  const tbody = $('meta-table-body');
-  if (!tbody) return;
-
-  const heading = $('meta-tier-heading');
-  if (heading) heading.textContent = t('metaTierHeading', { season: core.setLabel(state.set) });
-
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="left muted">${t('noCompsMatched')}</td></tr>`;
+// Loads the live patch's comps and placement stats for the current filters; renders when they arrive.
+async function loadMeta() {
+  const key = `${state.metaRank}|${state.metaDays}`;
+  if (state.meta?.key === key) {
+    renderMetaTierList();
     return;
   }
+  const statusEl = $('meta-status');
+  statusEl.hidden = false;
+  statusEl.classList.remove('error');
+  statusEl.textContent = t('metaLoading');
+  try {
+    const [patch, set] = await Promise.all([fetchPatch(), detectCurrentSet()]);
+    if (!set) throw new Error(t('determiningSeasonError'));
+    const [setData, comps, stats] = await Promise.all([
+      getLookup(set, i18n.getMetaTftLocale()),
+      getComps(set),
+      getCompsStats(META_RANKS[state.metaRank], state.metaDays),
+    ]);
+    // A newer filter choice may have started its own load meanwhile; that one renders.
+    if (key !== `${state.metaRank}|${state.metaDays}`) return;
+    const lk = core.buildLookups(setData);
+    state.meta = { key, set, patch: patch?.patch ?? null, lk, clusters: comps ? core.buildClusters(comps, lk) : [], stats };
+    statusEl.hidden = true;
+    renderMetaTierList();
+  } catch (err) {
+    console.error(err);
+    statusEl.classList.add('error');
+    statusEl.textContent = t('loadError', { msg: err.message });
+  }
+}
 
-  tbody.innerHTML = list
-    .map((item) => {
-      const uStats = item.userStats;
-      const diffText = uStats
-        ? uStats.diff >= 0
-          ? `<span class="pos">${t('metaBetter', { diff: uStats.diff.toFixed(2) })}</span>`
-          : `<span class="neg">${t('metaWorse', { diff: uStats.diff.toFixed(2) })}</span>`
-        : '';
-      const userHtml = uStats
-        ? `<div><strong>${t('metaYouPlayed', { games: uStats.games, avg: uStats.avgPlace.toFixed(2) })}</strong> ${diffText}</div>`
-        : `<span class="muted">${t('metaNotPlayed')}</span>`;
+function levellingLabel(s) {
+  if (!s) return '';
+  const fast = /^Fast (\d+)$/i.exec(s);
+  if (fast) return t('metaLvlFast', { n: fast[1] });
+  const reroll = /^lvl (\d+)$/i.exec(s);
+  if (reroll) return t('metaLvlReroll', { n: reroll[1] });
+  return /^standard$/i.test(s) ? t('metaLvlStandard') : s;
+}
 
+function metaUnitsHtml(item, lk) {
+  const itemsByUnit = new Map(item.builds.map((b) => [b.unit, b.items]));
+  return item.units
+    .map((id) => ({ id, ...core.unitInfo(lk, id) }))
+    .sort((a, b) => a.cost - b.cost)
+    .map((u) => {
+      const items = itemsByUnit.get(u.id) ?? [];
       return `
-        <tr data-meta-key="${esc(item.key)}" class="meta-row clickable">
-          <td><span class="meta-tier-pill tier-${item.tier}">${item.tier}</span></td>
-          <td class="left">
-            <div class="comp-cell">
-              <div class="comp-name">${esc(item.label)}</div>
-              <div class="units">${unitsHtml(item.units.map((u) => core.unitInfo(state.lk, u)))}</div>
-            </div>
-          </td>
-          <td><strong>${item.metaAvg?.toFixed(2) ?? '—'}</strong></td>
-          <td>${item.metaCount ? item.metaCount.toLocaleString() : '—'}</td>
-          <td class="left">${userHtml}</td>
-        </tr>`;
+        <div class="meta-unit" title="${esc(u.name)}">
+          ${item.stars.has(u.id) ? `<span class="meta-stars" title="${esc(t('metaThreeStar'))}">★★★</span>` : ''}
+          <div class="unit c${u.cost}"><img src="${esc(u.icon)}" alt="${esc(u.name)}" loading="lazy"></div>
+          ${
+            items.length
+              ? `<div class="meta-items">${items
+                  .map((id) => core.itemInfo(lk, id))
+                  .map((it) => `<img src="${esc(it.icon)}" title="${esc(it.name)}" alt="${esc(it.name)}" loading="lazy">`)
+                  .join('')}</div>`
+              : ''
+          }
+        </div>`;
     })
     .join('');
+}
+
+function metaCompHtml(item, lk) {
+  const u = item.userStats;
+  const youHtml = u
+    ? `<div class="meta-you">${t('metaYouLabel')}: ${t('metaYouPlayed', { games: u.games, avg: u.avgPlace.toFixed(2) })} ${
+        u.diff >= 0
+          ? `<span class="pos">${t('metaBetter', { diff: u.diff.toFixed(2) })}</span>`
+          : `<span class="neg">${t('metaWorse', { diff: u.diff.toFixed(2) })}</span>`
+      }</div>`
+    : '';
+  const lvl = levellingLabel(item.levelling);
+  return `
+    <div class="meta-comp${u ? ' clickable' : ''}" data-meta-key="${esc(item.key)}">
+      <div class="meta-comp-main">
+        <div class="meta-comp-name">${esc(item.label)}${lvl ? `<span class="meta-lvl">${esc(lvl)}</span>` : ''}</div>
+        <div class="meta-units">${metaUnitsHtml(item, lk)}</div>
+        ${youHtml}
+      </div>
+      <div class="meta-comp-stats">
+        <div><span class="k">${t('thAvgPlace')}</span><span class="v meta-avg">${num(item.avgPlace)}</span></div>
+        <div><span class="k">${t('thTop4')}</span><span class="v">${pct(item.top4Rate)}</span></div>
+        <div><span class="k">${t('thTop1')}</span><span class="v">${pct(item.winRate)}</span></div>
+        <div><span class="k">${t('metaPickRate')}</span><span class="v">${item.pickRate == null ? '—' : `${(item.pickRate * 100).toFixed(1)}%`}</span></div>
+      </div>
+    </div>`;
+}
+
+// Draws the loaded tier list; the player's own stats per comp come from the profile view's groups.
+function renderMetaTierList() {
+  const m = state.meta;
+  if (!m) return;
+  $('meta-tier-heading').textContent = t('metaTierHeading', { season: core.setLabel(m.set) });
+  const totalBoards = m.stats?.results?.find((r) => r.cluster === '')?.places?.[0] ?? 0;
+  const info = t('metaPatchInfo', {
+    patch: m.patch ?? '—',
+    games: Math.round(totalBoards / 8).toLocaleString(i18n.getLang() === 'vi' ? 'vi-VN' : 'en-US'),
+    time: m.stats?.updated ? fmtDate(m.stats.updated) : '—',
+  });
+  $('meta-patch-info').textContent = m.stats?.filter_adjustment?.override_applied ? `${info} · ${t('metaAdjusted')}` : info;
+
+  // Player comps only line up with the meta when they were grouped by the same live-patch clusters.
+  const groups = state.set === m.set && effectiveMode() === 'cluster' ? core.aggregate(filtered()) : [];
+  const list = core.processMetaTierList(m.clusters, m.stats, groups);
+  if (!list.length) {
+    $('meta-tiers').innerHTML = `<p class="muted">${t('noCompsMatched')}</p>`;
+    return;
+  }
+  $('meta-tiers').innerHTML = core.META_TIERS.map(({ tier }) => {
+    const comps = list.filter((x) => x.tier === tier);
+    if (!comps.length) return '';
+    return `
+      <div class="meta-tier meta-tier-${tier}">
+        <div class="meta-tier-letter">${tier}</div>
+        <div class="meta-tier-comps">${comps.map((x) => metaCompHtml(x, m.lk)).join('')}</div>
+      </div>`;
+  }).join('');
 }
 
 function placesHtml(ms) {
@@ -2201,18 +2301,26 @@ function setupTabs() {
   $('tab-profile')?.addEventListener('click', () => switchTab('profile'));
   $('tab-meta')?.addEventListener('click', () => switchTab('meta'));
 
-  $('meta-table-body')?.addEventListener('click', (e) => {
-    const row = e.target.closest('.meta-row');
-    if (row) {
-      const key = row.dataset.metaKey;
-      if (key) {
-        state.selected = key;
-        switchTab('profile');
-        const matches = filtered();
-        renderSelectionViews(matches, core.aggregate(matches));
-        syncUrl();
-      }
-    }
+  // Only comps the player has played are clickable: they open that comp in the profile view.
+  $('meta-tiers')?.addEventListener('click', (e) => {
+    const key = e.target.closest('.meta-comp.clickable')?.dataset.metaKey;
+    if (!key) return;
+    state.selected = key;
+    switchTab('profile');
+    const matches = filtered();
+    renderSelectionViews(matches, core.aggregate(matches));
+    syncUrl();
+  });
+
+  $('meta-rank').addEventListener('change', (e) => {
+    state.metaRank = e.target.value;
+    loadMeta();
+    syncUrl();
+  });
+  $('meta-days').addEventListener('change', (e) => {
+    state.metaDays = e.target.value;
+    loadMeta();
+    syncUrl();
   });
 }
 
@@ -2277,6 +2385,7 @@ function init() {
         console.warn('Reloading localized lookups error:', err);
       }
     }
+    state.meta = null; // its unit and comp names are localized too
     renderSeasonOptions();
     render();
   });
@@ -2410,9 +2519,14 @@ function init() {
   if (/^\d+$/.test(params.get('min') ?? '')) state.minGames = Number(params.get('min'));
   state.pendingPatch = params.get('p');
   state.pendingTeam = params.get('team');
+  if (Object.hasOwn(META_RANKS, params.get('mr') ?? '')) state.metaRank = params.get('mr');
+  if (META_DAYS.includes(params.get('md'))) state.metaDays = params.get('md');
   $('group-mode').value = state.groupMode;
   $('queue').value = state.queue;
   $('min-games').value = String(state.minGames);
+  $('meta-rank').value = state.metaRank;
+  $('meta-days').value = state.metaDays;
+  if (params.get('tab') === 'meta') switchTab('meta');
   const startSet = /^TFTSet\d+(_\d+)?$/.test(params.get('s') ?? '') ? params.get('s') : null;
 
   let start = params.get('id') ? { region: params.get('r') || 'vn', id: params.get('id') } : null;

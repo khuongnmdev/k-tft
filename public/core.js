@@ -203,6 +203,9 @@ export function buildClusters(compsData, lk) {
       nameParts,
       metaCount: games[c.Cluster]?.[0]?.count ?? c.overall?.count ?? 0,
       metaAvg: games[c.Cluster]?.[0]?.avg ?? c.overall?.avg ?? null,
+      stars: new Set(c.stars ?? []),
+      builds: (c.builds ?? []).map((b) => ({ unit: b.unit, items: b.buildName ?? [] })),
+      levelling: c.levelling ?? null,
     };
   });
 }
@@ -1094,44 +1097,51 @@ export function championAndItemStats(matches, lk) {
 
 // ---------- Meta Tier List Processing ----------
 
-export function processMetaTierList(clusters, groups) {
-  const userMap = new Map();
-  for (const g of groups ?? []) {
-    userMap.set(g.key, g);
-    userMap.set(g.label, g);
+// Comp tiers by average placement, cut where MetaTFT's tier list roughly splits them.
+export const META_TIERS = [
+  { tier: 'S', max: 4.3 },
+  { tier: 'A', max: 4.45 },
+  { tier: 'B', max: 4.65 },
+  { tier: 'C', max: 4.9 },
+  { tier: 'D', max: Infinity },
+];
+
+// Comps with fewer boards than this swing too much to rank.
+const META_MIN_GAMES = 200;
+
+// `stats` is comps_stats: one row per cluster with places = [#1..#8 counts, total], plus a
+// cluster '' row whose places[0] counts every board in the sample.
+export function processMetaTierList(clusters, stats, groups) {
+  let totalBoards = 0;
+  const statsById = new Map();
+  for (const r of stats?.results ?? []) {
+    if (r.cluster === '') totalBoards = r.places?.[0] ?? 0;
+    else statsById.set(String(r.cluster), r);
   }
+  const userMap = new Map((groups ?? []).map((g) => [g.key, g]));
 
-  const list = (clusters ?? []).map((c) => {
-    const metaAvg = c.metaAvg ?? 4.5;
-    let tier = 'B';
-    if (metaAvg <= 4.18) tier = 'S';
-    else if (metaAvg <= 4.38) tier = 'A';
-
-    const userComp = userMap.get(c.key) ?? userMap.get(c.label);
-    const userStats = userComp
-      ? {
-          games: userComp.games,
-          avgPlace: userComp.avgPlace,
-          top4Rate: userComp.top4Rate,
-          winRate: userComp.winRate,
-          lpNet: userComp.lpNet,
-          diff: metaAvg - userComp.avgPlace,
-        }
-      : null;
-
-    return {
-      clusterId: c.id,
+  const list = [];
+  for (const c of clusters ?? []) {
+    const r = statsById.get(String(c.id));
+    if (!r || r.count < META_MIN_GAMES) continue;
+    const p = r.places;
+    const avgPlace = p.slice(0, 8).reduce((sum, n, i) => sum + n * (i + 1), 0) / r.count;
+    const userComp = userMap.get(c.key);
+    list.push({
       key: c.key,
       label: c.label,
-      tier,
-      metaAvg,
-      metaCount: c.metaCount,
+      tier: META_TIERS.find((x) => avgPlace <= x.max).tier,
+      games: r.count,
+      avgPlace,
+      top4Rate: (p[0] + p[1] + p[2] + p[3]) / r.count,
+      winRate: p[0] / r.count,
+      pickRate: totalBoards ? r.count / totalBoards : null,
       units: [...c.units],
-      traits: [...c.traits.entries()],
-      nameParts: c.nameParts,
-      userStats,
-    };
-  });
-
-  return list.sort((a, b) => (a.metaAvg ?? 99) - (b.metaAvg ?? 99) || (b.metaCount ?? 0) - (a.metaCount ?? 0));
+      stars: c.stars,
+      builds: c.builds,
+      levelling: c.levelling,
+      userStats: userComp ? { games: userComp.games, avgPlace: userComp.avgPlace, diff: avgPlace - userComp.avgPlace } : null,
+    });
+  }
+  return list.sort((a, b) => a.avgPlace - b.avgPlace);
 }

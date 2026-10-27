@@ -61,6 +61,18 @@ const routes = {
     return { url, ttl: 30 * MIN };
   },
 
+  // Placement counts per comp on the current patch, for the meta tier list.
+  '/api/comps-stats': (q) => {
+    const queue = q.get('queue') ?? '1100';
+    const days = q.get('days') ?? '3';
+    const rank = q.get('rank') ?? '';
+    if (!/^\d+$/.test(queue) || !/^\d+$/.test(days)) return { error: 'queue / days không hợp lệ' };
+    if (!/^[A-Z,]*$/.test(rank)) return { error: 'rank không hợp lệ' };
+    let url = `https://api-hc.metatft.com/tft-comps-api/comps_stats?queue=${queue}&patch=current&days=${days}&permit_filter_adjustment=true`;
+    if (rank) url += `&rank=${rank}`;
+    return { url, ttl: 10 * MIN };
+  },
+
   '/api/profile': (q) => {
     const region = q.get('region') ?? '';
     const name = q.get('name') ?? '';

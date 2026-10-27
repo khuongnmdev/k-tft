@@ -1724,37 +1724,97 @@ tbody tr.dim { opacity: 0.45; }
 
 /* ---------- Meta Tier List ---------- */
 
-.meta-tier-pill {
-  display: inline-flex;
+/* Tier colors follow the usual tier-list ramp: red S down to blue D. */
+.meta-tier-S { --tier-color: #ff6b6b; }
+.meta-tier-A { --tier-color: #ff9f43; }
+.meta-tier-B { --tier-color: #f7d154; }
+.meta-tier-C { --tier-color: #7bd389; }
+.meta-tier-D { --tier-color: #6fa8dc; }
+
+.meta-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-left: auto; }
+.meta-filters label { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.meta-filters select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.meta-hint { margin-bottom: 14px; }
+.meta-status { padding: 12px 0; color: var(--text-muted); }
+.meta-status.error { color: var(--critical-text); }
+
+.meta-tiers { display: grid; gap: 12px; }
+.meta-tier {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--tier-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.meta-tier-letter {
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  font-weight: 800;
-  font-size: 13px;
+  font-size: 30px;
+  font-weight: 900;
+  color: #161615;
+  background: var(--tier-color);
 }
-.meta-tier-pill.tier-S {
-  background: linear-gradient(135deg, #ffd700, #ff8800);
-  color: #000;
-  box-shadow: 0 0 10px rgba(255, 170, 0, 0.45);
+.meta-tier-comps { display: grid; }
+.meta-comp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 20px;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
 }
-.meta-tier-pill.tier-A {
-  background: linear-gradient(135deg, #9085e9, #4a00e0);
-  color: #fff;
-}
-.meta-tier-pill.tier-B {
+.meta-tier-comps .meta-comp:first-child { border-top: none; }
+.meta-comp.clickable { cursor: pointer; }
+.meta-comp.clickable:hover { background: var(--surface-2); }
+.meta-comp-main { display: grid; gap: 8px; min-width: 0; }
+.meta-comp-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.meta-lvl {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-secondary);
 }
-.meta-row.clickable {
-  cursor: pointer;
-  transition: background 0.15s ease;
+.meta-units { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.meta-unit { display: grid; justify-items: center; gap: 2px; position: relative; padding-top: 10px; }
+.meta-unit .unit { width: 40px; height: 40px; }
+.meta-stars {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--gold);
+  white-space: nowrap;
 }
-.meta-row.clickable:hover {
-  background: rgba(255, 255, 255, 0.04);
+.meta-items { display: flex; gap: 1px; }
+.meta-items img { width: 13px; height: 13px; border-radius: 2px; display: block; }
+.meta-you { font-size: 13px; color: var(--text-secondary); }
+
+.meta-comp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(64px, auto));
+  gap: 4px 18px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
+.meta-comp-stats .k { display: block; font-size: 11px; color: var(--text-muted); }
+.meta-comp-stats .v { display: block; font-size: 15px; font-weight: 700; }
+.meta-comp-stats .meta-avg { color: var(--tier-color); }
 
 /* ---------- Modals ---------- */
 
@@ -1994,6 +2054,12 @@ tbody tr.dim { opacity: 0.45; }
   }
   .mastery-grid { grid-template-columns: 1fr; }
   .modal-compare { padding: 18px; }
+  .meta-filters { margin-left: 0; }
+  .meta-tier { grid-template-columns: 36px minmax(0, 1fr); }
+  .meta-tier-letter { font-size: 22px; }
+  .meta-comp { grid-template-columns: minmax(0, 1fr); padding: 10px 12px; }
+  .meta-comp-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: left; }
+  .meta-unit .unit { width: 34px; height: 34px; }
   .cmp-head { grid-template-columns: minmax(0, 1fr); }
   .cmp-vs { flex-direction: row; gap: 14px; }
   .cmp-row { grid-template-columns: minmax(0, 1fr) minmax(90px, 120px) minmax(0, 1fr); gap: 6px; }

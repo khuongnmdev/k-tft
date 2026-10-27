@@ -34,6 +34,7 @@ Mở http://localhost:3000, nhập `Tên#Tag` (hoặc dán link MetaTFT dạng `
 - Cách nhóm: theo comp meta của MetaTFT (ghép mỗi trận với comp gần giống nhất), hoặc Tộc/Hệ chính + Carry, chỉ Carry, chỉ Tộc/Hệ.
 - Chọn mùa: mùa hiện tại và các mùa trước mà người chơi có rank (Set 9 trở đi).
 - URL lưu cả người chơi, mùa, bộ lọc và đội đang chọn (`?r=vn&id=Tên#Tag&s=TFTSet17&lang=vi&team=...`), nên gửi link là người khác mở ra thấy đúng view đó. Tên đội được dịch theo ngôn ngữ, nên link có `team` luôn kèm `lang`.
+- Meta Tier List (tab cạnh Hồ sơ kỳ thủ, link `?tab=meta`): các comp của patch mới nhất xếp tier S/A/B/C/D theo hạng trung bình, có màu từng tier; mỗi comp có tướng (★★★ cho tướng hay lên 3 sao, 3 item gợi ý dưới tướng gánh), cách lên cấp, hạng TB, Top 4, Top 1, tỉ lệ chọn và thành tích của người đang xem với comp đó. Lọc theo rank (`mr`) và 1/3/7 ngày gần nhất (`md`).
 - So sánh 1v1: chọn đối thủ (gợi ý ưu tiên kỳ thủ đã ghim) rồi mở trang `compare.html?r1=vn&id1=Tên#Tag&r2=na&id2=Tên#Tag&s=TFTSet18` với rank, chỉ số đối đầu, chart leo rank chồng nhau, phân bố thứ hạng, đội hình cả hai cùng chơi, đội tủ và tướng/trang bị của mỗi người. Đổi mùa, chế độ hoặc đổi bên ngay trên trang.
 
 ## Ghi chú
