@@ -14,7 +14,8 @@ Trang chạy tĩnh trên GitHub Pages: không có server, trình duyệt gọi t
 - Mỗi lần push lên `main`, workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml) đưa thư mục `public/` lên Pages (xem tiến độ ở tab Actions, thường dưới 1 phút).
 - Lần đầu cho repo mới: Settings → Pages → Source chọn **GitHub Actions**.
 - `shared.js` tự chọn cách gọi API: trên `*.github.io` / `*.pages.dev` / `file://` thì gọi thẳng MetaTFT; ở nơi khác thì gọi `/api/*` của `server.js`, nếu nhận 404 hoặc lỗi mạng thì chuyển sang gọi thẳng. Vì vậy host tĩnh khác (Cloudflare Pages, Netlify…) cũng chạy được: chỉ cần trỏ thư mục output vào `public/`, không có bước build.
-- Pages cache file khoảng 10 phút. Khi phát hành, tăng số `?v=` trong `index.html`, `compare.html` và các dòng `import` đầu các file `.js` để người dùng nhận bản mới ngay.
+- PWA: có `manifest.webmanifest` và icon nên cài được như app (Chrome/Edge: "Cài đặt ứng dụng", iOS: "Thêm vào màn hình chính"). Service worker [`sw.js`](public/sw.js) cache trọn bộ file của một bản build; workflow deploy thay `__BUILD__` trong `sw.js` bằng mã commit, nên mỗi lần deploy trình duyệt cài bản mới (không qua cache 10 phút của Pages), rồi [`pwa.js`](public/pwa.js) tự tải lại trang. Tab đang mở kiểm tra bản mới mỗi 5 phút và mỗi khi quay lại tab. Không cần tăng số `?v=` nữa.
+- Chạy local (`npm start` hoặc python) thì `sw.js` chưa được đóng dấu nên không cache gì, sửa code xong tải lại là thấy. Deploy `server.js` lên host Node thì thêm bước thay `__BUILD__` như trong workflow để có tự cập nhật.
 - Thử bản tĩnh trên máy (giống Pages, không có `/api`): `python -m http.server 3001 --directory public` rồi mở http://localhost:3001.
 - Muốn chạy kèm server (có cache phía server) thì deploy `server.js` lên host Node bất kỳ (Render, Fly.io, Railway…) với lệnh `npm start`; cổng lấy từ biến môi trường `PORT`.
 

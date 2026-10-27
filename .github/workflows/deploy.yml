@@ -24,6 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # A new build id changes sw.js, which is what makes open tabs fetch the new bundle and reload.
+      - name: Stamp build id into the service worker
+        run: |
+          sed -i "s/__BUILD__/${GITHUB_SHA::12}/" public/sw.js
+          ! grep -q "__BUILD__" public/sw.js
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
